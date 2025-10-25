@@ -1,0 +1,59 @@
+# ----------------------------------------------------------------------
+# ⚠️ THÔNG TIN NHẠY CẢM VÀ CẤU HÌNH CÁ NHÂN (Tuyệt đối không push)
+# ----------------------------------------------------------------------
+
+# File môi trường (đặt trong thư mục backend)
+/backend/.env
+
+# Cấu hình IDE (Visual Studio Code, JetBrains,...)
+.vscode/
+# !.vscode/extensions.json  <-- Bỏ comment nếu muốn chia sẻ gợi ý extension
+# !.vscode/settings.json    <-- Bỏ comment nếu muốn chia sẻ settings
+.idea/
+
+# Cache Hệ điều hành (macOS)
+.DS_Store
+
+
+# ----------------------------------------------------------------------
+# 🐍 BACKEND (Python/FastAPI)
+# ----------------------------------------------------------------------
+
+# Thư mục môi trường ảo
+/backend/venv/
+/backend/env/
+
+# File cache và biên dịch
+/backend/__pycache__/
+/backend/*.py[cod]
+
+# Log files
+/backend/*.log
+/backend/logs/
+
+# File build và phân phối
+/backend/build/
+/backend/dist/
+*.egg-info/
+.installed.cfg
+
+# Cache Pytest
+.pytest_cache/
+
+
+# ----------------------------------------------------------------------
+# 🌐 FRONTEND (Node.js/React/Vite)
+# ----------------------------------------------------------------------
+
+# Dependencies (rất nặng)
+/frontend/node_modules/
+
+# Build output
+# File này chứa phiên bản sản xuất của frontend
+/frontend/dist/
+
+# Log lỗi Node/NPM/Yarn
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
