@@ -113,7 +113,7 @@ Tài liệu mô tả các **chức năng chính** của hệ thống bán hàng 
 ---
 
 ✅ **Tổng số chức năng**: 45  
-📄 File này dùng làm **tài liệu mô tả yêu cầu chức năng (Functional Specification)** hoặc **Product Backlog** khi làm dự án React + FastAPI + MONGO.
+📄 File này dùng làm **tài liệu mô tả yêu cầu chức năng (Functional Specification)** hoặc **Product Backlog** khi làm dự án React + FastAPI + Mongodb .
 
 ---
 
