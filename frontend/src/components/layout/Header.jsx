@@ -3,8 +3,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import { FaSearch, FaShoppingCart, FaUser, FaBars, FaTimes, FaHeart, FaBell, FaShoppingBag } from 'react-icons/fa'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCart } from '../../contexts/CartContext'
-import { ROUTES, CATEGORIES } from '../../utils/constants'
+import { ROUTES } from '../../utils/constants'
 import api from '../../services/api'
+import { productService } from '../../services/productService'
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -14,6 +15,7 @@ const Header = () => {
   const [showNotifications, setShowNotifications] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
+  const [categories, setCategories] = useState([])
   const { user, isAuthenticated, logout } = useAuth()
   const { getCartCount } = useCart()
   const navigate = useNavigate()
@@ -24,6 +26,19 @@ const Header = () => {
     }
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  // Fetch categories from API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const data = await productService.getCategories()
+        setCategories(data)
+      } catch (error) {
+        console.error('Error fetching categories:', error)
+      }
+    }
+    fetchCategories()
   }, [])
 
   // Fetch notifications
@@ -287,6 +302,15 @@ const Header = () => {
                       <FaShoppingBag className="text-gray-500" />
                       <span className="text-sm font-medium">Đơn hàng</span>
                     </Link>
+                    <Link to="/chat" className="flex items-center gap-3 px-4 py-3 hover:bg-purple-50 transition-colors group/chat">
+                      <div className="relative">
+                        <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                      </div>
+                      <span className="text-sm font-medium text-purple-600 group-hover/chat:text-purple-700">💬 Chat hỗ trợ</span>
+                    </Link>
                     {user?.role === 'admin' && (
                       <Link to={ROUTES.ADMIN} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors border-t">
                         <span className="text-sm font-medium text-purple-600">⚡ Quản trị</span>
@@ -348,7 +372,7 @@ const Header = () => {
               >
                 🔥 Tất cả
               </Link>
-              {CATEGORIES.map((category) => (
+              {categories.map((category) => (
                 <Link
                   key={category.id}
                   to={`${ROUTES.PRODUCTS}?category=${category.id}`}
@@ -377,7 +401,7 @@ const Header = () => {
                   </button>
                 </div>
                 <nav className="space-y-2">
-                  {CATEGORIES.map((category) => (
+                  {categories.map((category) => (
                     <Link
                       key={category.id}
                       to={`${ROUTES.PRODUCTS}?category=${category.id}`}

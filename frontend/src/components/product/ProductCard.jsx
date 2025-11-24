@@ -6,12 +6,14 @@ import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import Badge from '../common/Badge';
 import api from '../../services/api';
+import QuickAddModal from './QuickAddModal';
 
 const ProductCard = ({ product, viewMode = 'grid' }) => {
   const navigate = useNavigate();
   const { addToCart } = useCart();
   const { user, loading } = useAuth();
   const [isInWishlist, setIsInWishlist] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   
   // Map API data to component props
   const id = product.id;
@@ -95,8 +97,8 @@ const ProductCard = ({ product, viewMode = 'grid' }) => {
     }
     
     if (inStock) {
-      addToCart(product, 1);
-      toast.success('Đã thêm vào giỏ hàng');
+      // Open quick add modal instead of adding directly
+      setShowQuickAdd(true);
     }
   };
 
@@ -231,6 +233,7 @@ const ProductCard = ({ product, viewMode = 'grid' }) => {
 
   // Grid View
   return (
+    <>
     <div className="group relative bg-white rounded-2xl overflow-hidden 
                   shadow-lg hover:shadow-2xl transition-all duration-500
                   hover:-translate-y-2">
@@ -360,6 +363,14 @@ const ProductCard = ({ product, viewMode = 'grid' }) => {
                       -skew-x-12 group-hover:animate-shine" />
       </div>
     </div>
+    
+    {/* Quick Add Modal */}
+    <QuickAddModal 
+      product={product}
+      isOpen={showQuickAdd}
+      onClose={() => setShowQuickAdd(false)}
+    />
+    </>
   );
 };
 

@@ -22,12 +22,13 @@ const AdminLayout = () => {
 
   const menuItems = [
     { path: '/admin', icon: FaTachometerAlt, label: 'Dashboard', exact: true },
+    { path: '/admin/analytics', icon: FaChartLine, label: 'Thống Kê Nâng Cao', badge: 'new' },
     { path: '/admin/products', icon: FaBoxes, label: 'Sản Phẩm' },
     { path: '/admin/orders', icon: FaShoppingCart, label: 'Đơn Hàng' },
     { path: '/admin/users', icon: FaUsers, label: 'Người Dùng' },
-    { path: '/admin/sellers', icon: FaStore, label: 'Người Bán', badge: 'new' },
-    { path: '/admin/stats', icon: FaChartLine, label: 'Thống Kê' },
-    { path: '/admin/coupons', icon: FaTags, label: 'Mã Giảm Giá' },
+    { path: '/admin/sellers', icon: FaStore, label: 'Người Bán' },
+    { path: '/admin/coupons', icon: FaTags, label: 'Mã Giảm Giá', badge: 'new' },
+    { path: '/admin/chat', icon: null, label: '💬 Hỗ Trợ Khách Hàng', badge: 'hot', special: true },
   ]
 
   const handleLogout = () => {
@@ -83,14 +84,29 @@ const AdminLayout = () => {
             <Link
               key={item.path}
               to={item.path}
-              className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${
+              className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 ${
                 isActive(item.path, item.exact)
-                  ? 'bg-gradient-to-r from-pink-500 to-purple-600 shadow-lg shadow-purple-500/50 text-white'
+                  ? item.special
+                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 shadow-lg shadow-green-500/50 text-white animate-pulse-slow'
+                    : 'bg-gradient-to-r from-pink-500 to-purple-600 shadow-lg shadow-purple-500/50 text-white'
+                  : item.special
+                  ? 'text-green-300 hover:bg-green-800/30 hover:text-white border border-green-500/30'
                   : 'text-purple-200 hover:bg-purple-800/50 hover:text-white'
               }`}
             >
-              <item.icon className="text-lg flex-shrink-0" />
-              <span className="font-semibold">{item.label}</span>
+              <div className="flex items-center space-x-3">
+                {item.icon ? <item.icon className="text-lg flex-shrink-0" /> : null}
+                <span className="font-semibold">{item.label}</span>
+              </div>
+              {item.badge && (
+                <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${
+                  item.badge === 'hot' 
+                    ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white animate-pulse'
+                    : 'bg-yellow-400 text-purple-900'
+                }`}>
+                  {item.badge}
+                </span>
+              )}
             </Link>
           ))}
         </nav>

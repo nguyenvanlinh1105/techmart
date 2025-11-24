@@ -38,11 +38,18 @@ export const CartProvider = ({ children }) => {
   }, [cartItems, isLoaded])
 
   const addToCart = (product, quantity = 1, selectedSize = null, selectedColor = null) => {
+    // Normalize size and color to null if undefined or empty
+    const normalizedSize = selectedSize || null;
+    const normalizedColor = selectedColor || null;
+    
+    // Use product.id (already normalized from backend)
+    const productId = product.id || product._id;
+    
     const existingItemIndex = cartItems.findIndex(
       (item) =>
-        item.id === product.id &&
-        item.selectedSize === selectedSize &&
-        item.selectedColor === selectedColor
+        item.id === productId &&
+        (item.selectedSize || null) === normalizedSize &&
+        (item.selectedColor || null) === normalizedColor
     )
 
     if (existingItemIndex !== -1) {
@@ -50,31 +57,35 @@ export const CartProvider = ({ children }) => {
       const newCart = [...cartItems]
       newCart[existingItemIndex].quantity += quantity
       setCartItems(newCart)
+      console.log('✅ Updated existing cart item quantity:', newCart[existingItemIndex]);
     } else {
       // Add new item
-      setCartItems([
-        ...cartItems,
-        {
-          ...product,
-          quantity,
-          selectedSize,
-          selectedColor,
-          addedAt: new Date().toISOString(),
-        },
-      ])
+      const newItem = {
+        ...product,
+        id: productId, // Ensure consistent ID
+        quantity,
+        selectedSize: normalizedSize,
+        selectedColor: normalizedColor,
+        addedAt: new Date().toISOString(),
+      };
+      setCartItems([...cartItems, newItem]);
+      console.log('✅ Added new cart item:', newItem);
     }
     
     // Note: Don't show toast here, let the calling component handle it
   }
 
   const removeFromCart = (productId, selectedSize = null, selectedColor = null) => {
+    const normalizedSize = selectedSize || null;
+    const normalizedColor = selectedColor || null;
+    
     setCartItems(
       cartItems.filter(
         (item) =>
           !(
             item.id === productId &&
-            item.selectedSize === selectedSize &&
-            item.selectedColor === selectedColor
+            (item.selectedSize || null) === normalizedSize &&
+            (item.selectedColor || null) === normalizedColor
           )
       )
     )
@@ -87,11 +98,14 @@ export const CartProvider = ({ children }) => {
       return
     }
 
+    const normalizedSize = selectedSize || null;
+    const normalizedColor = selectedColor || null;
+
     setCartItems(
       cartItems.map((item) =>
         item.id === productId &&
-        item.selectedSize === selectedSize &&
-        item.selectedColor === selectedColor
+        (item.selectedSize || null) === normalizedSize &&
+        (item.selectedColor || null) === normalizedColor
           ? { ...item, quantity }
           : item
       )

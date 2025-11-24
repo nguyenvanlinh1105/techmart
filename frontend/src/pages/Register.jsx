@@ -77,7 +77,7 @@ const Register = () => {
         // Call real API
         const response = await authService.register({
           email: formData.email,
-          fullName: formData.fullName,
+          full_name: formData.fullName,  // Backend expects full_name with underscore
           phone: formData.phone,
           password: formData.password,
         });

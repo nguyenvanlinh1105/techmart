@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 
 # Import all routers
 from app.auth import router as auth_router
@@ -9,6 +11,10 @@ from app.orders import router as orders_router
 from app.features import router as features_router
 from app.admin import router as admin_router
 from app.seller import router as seller_router
+from app.analytics import router as analytics_router
+from app.coupons import router as coupons_router
+from app.reviews import router as reviews_router
+from app.chat import router as chat_router
 
 app = FastAPI(
     title="TechMart E-Commerce API",
@@ -76,14 +82,26 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
+# Mount static files for uploads
+uploads_dir = "uploads"
+if not os.path.exists(uploads_dir):
+    os.makedirs(uploads_dir)
+    os.makedirs(os.path.join(uploads_dir, "chat"), exist_ok=True)
+
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
 # Include all routers
 app.include_router(auth_router)  # /api/auth/*
 app.include_router(products_router)  # /api/products/*, /api/categories/*
-app.include_router(cart_router)  # /api/cart/*, /api/coupons/*
+app.include_router(cart_router)  # /api/cart/*
 app.include_router(orders_router)  # /api/orders/*
-app.include_router(features_router)  # /api/reviews/*, /api/wishlist/*, /api/notifications/*
+app.include_router(features_router)  # /api/wishlist/*, /api/notifications/*
+app.include_router(reviews_router)  # /api/reviews/*
 app.include_router(admin_router)  # /api/admin/*
 app.include_router(seller_router)  # /api/seller/*
+app.include_router(analytics_router)  # /api/analytics/*
+app.include_router(coupons_router)  # /api/coupons/*
+app.include_router(chat_router)  # /api/chat/*
 
 @app.get("/")
 def root():

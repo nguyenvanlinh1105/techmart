@@ -34,22 +34,31 @@ const Products = () => {
     fetchCategories();
   }, []);
 
+  // Sync URL params with filters
   useEffect(() => {
-    // Get category from URL params
     const categoryParam = searchParams.get('category');
-    const searchParam = searchParams.get('search');
     
     if (categoryParam) {
-      setSelectedFilters(prev => ({
-        ...prev,
-        categories: [categoryParam]
-      }));
+      // Only update if different from current selection
+      if (!selectedFilters.categories.includes(categoryParam)) {
+        setSelectedFilters(prev => ({
+          ...prev,
+          categories: [categoryParam]
+        }));
+      }
+    } else {
+      // Clear category filter if no param
+      if (selectedFilters.categories.length > 0) {
+        setSelectedFilters(prev => ({
+          ...prev,
+          categories: []
+        }));
+      }
     }
-    
-    if (searchParam) {
-      // Will be handled in fetchProducts
-    }
-    
+  }, [searchParams]);
+
+  // Fetch products when filters or sort changes
+  useEffect(() => {
     fetchProducts();
   }, [selectedFilters, sortBy, searchParams]);
 
@@ -113,12 +122,23 @@ const Products = () => {
   ];
 
   const toggleCategory = (categoryId) => {
+    const newCategories = selectedFilters.categories.includes(categoryId)
+      ? selectedFilters.categories.filter(c => c !== categoryId)
+      : [categoryId]; // Only allow one category at a time
+    
     setSelectedFilters(prev => ({
       ...prev,
-      categories: prev.categories.includes(categoryId)
-        ? prev.categories.filter(c => c !== categoryId)
-        : [...prev.categories, categoryId]
+      categories: newCategories
     }));
+    
+    // Update URL to reflect the change
+    const newParams = new URLSearchParams(searchParams);
+    if (newCategories.length > 0) {
+      newParams.set('category', newCategories[0]);
+    } else {
+      newParams.delete('category');
+    }
+    window.history.replaceState({}, '', `${window.location.pathname}?${newParams.toString()}`);
   };
 
   const toggleBrand = (brand) => {
@@ -169,7 +189,20 @@ const Products = () => {
                     <FaFilter className="w-5 h-5 text-purple-600" />
                     Bộ Lọc
                   </h2>
-                  <button className="text-purple-600 hover:text-purple-700 font-semibold text-sm">
+                  <button 
+                    onClick={() => {
+                      setSelectedFilters({
+                        categories: [],
+                        priceRange: [0, 100000000],
+                        brands: [],
+                        rating: 0,
+                        inStock: false,
+                      });
+                      // Clear URL params
+                      window.history.replaceState({}, '', window.location.pathname);
+                    }}
+                    className="text-purple-600 hover:text-purple-700 font-semibold text-sm"
+                  >
                     Xóa Hết
                   </button>
                 </div>
@@ -177,7 +210,7 @@ const Products = () => {
                 {/* Categories Filter */}
                 <div className="mb-6">
                   <h3 className="font-bold text-gray-900 mb-3">Danh Mục</h3>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                  <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
                     {categories.map((category) => (
                       <label key={category.id} className="flex items-center gap-2 cursor-pointer group">
                         <input
@@ -186,8 +219,8 @@ const Products = () => {
                           onChange={() => toggleCategory(category.id)}
                           className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
                         />
-                        <span className="text-gray-700 group-hover:text-purple-600 transition-colors">
-                          {category.icon} {category.name} ({category.product_count})
+                        <span className="text-sm text-gray-700 group-hover:text-purple-600 transition-colors">
+                          {category.icon} {category.name} ({category.product_count || 0})
                         </span>
                       </label>
                     ))}
@@ -243,18 +276,21 @@ const Products = () => {
                 <div className="mb-6">
                   <h3 className="font-bold text-gray-900 mb-3">Đánh Giá</h3>
                   <div className="space-y-2">
-                    {[4, 3, 2, 1].map((rating) => (
+                    {[5, 4, 3, 2, 1].map((rating) => (
                       <button
                         key={rating}
-                        onClick={() => setSelectedFilters(prev => ({ ...prev, rating }))}
-                        className={`flex items-center gap-2 w-full p-2 rounded-lg 
-                                  transition-colors ${
+                        onClick={() => setSelectedFilters(prev => ({ 
+                          ...prev, 
+                          rating: prev.rating === rating ? 0 : rating 
+                        }))}
+                        className={`flex items-center gap-2 w-full p-2.5 rounded-lg 
+                                  transition-colors text-left ${
                                     selectedFilters.rating === rating
-                                      ? 'bg-purple-50 text-purple-600'
-                                      : 'hover:bg-gray-50'
+                                      ? 'bg-purple-50 border-2 border-purple-500'
+                                      : 'border-2 border-transparent hover:bg-gray-50'
                                   }`}
                       >
-                        <div className="flex items-center">
+                        <div className="flex items-center gap-1">
                           {[...Array(5)].map((_, i) => (
                             <FaStar
                               key={i}
@@ -264,7 +300,9 @@ const Products = () => {
                             />
                           ))}
                         </div>
-                        <span className="text-sm">& Up</span>
+                        <span className="text-sm text-gray-700 font-medium">
+                          {rating === 5 ? '5 sao' : `Từ ${rating} sao`}
+                        </span>
                       </button>
                     ))}
                   </div>
