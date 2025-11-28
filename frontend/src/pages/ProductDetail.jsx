@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   FaStar, 
@@ -13,11 +13,12 @@ import {
   FaShare,
   FaStore
 } from 'react-icons/fa';
-import { IoSparkles } from 'react-icons/io5';
 import { productService } from '../services/productService';
+import { reviewService } from '../services/reviewService';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
+import ReviewModal from '../components/ReviewModal';
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -29,11 +30,12 @@ const ProductDetail = () => {
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [canReview, setCanReview] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
   
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [selectedVariant, setSelectedVariant] = useState(null);
-  const [newReview, setNewReview] = useState({ rating: 5, title: '', comment: '' });
 
   // Fetch product data
   useEffect(() => {
@@ -62,10 +64,20 @@ const ProductDetail = () => {
       
       // Fetch reviews
       try {
-        const reviewsData = await productService.getReviews(id);
+        const reviewsData = await reviewService.getProductReviews(id, 1, 10);
         setReviews(reviewsData);
       } catch (error) {
         console.log('No reviews found');
+      }
+      
+      // Check if user can review
+      if (user) {
+        try {
+          const canReviewData = await reviewService.canReviewProduct(id);
+          setCanReview(canReviewData.can_review);
+        } catch (error) {
+          console.log('Cannot check review permission');
+        }
       }
     } catch (error) {
       console.error('Error fetching product:', error);
@@ -123,34 +135,19 @@ const ProductDetail = () => {
     navigate('/checkout');
   };
 
-  const handleSubmitReview = async () => {
+  const handleOpenReviewModal = () => {
     if (!user) {
-      toast.error('Vui lòng đăng nhập để đánh giá');
+      toast.warning('Vui lòng đăng nhập để đánh giá');
       navigate('/login');
       return;
     }
-
-    if (!newReview.comment.trim()) {
-      toast.error('Vui lòng nhập nội dung đánh giá');
+    
+    if (!canReview) {
+      toast.error('Bạn chỉ có thể đánh giá sản phẩm đã mua và giao thành công');
       return;
     }
-
-    try {
-      await productService.addReview({
-        product_id: id,
-        user_id: user.id,
-        rating: newReview.rating,
-        title: newReview.title,
-        comment: newReview.comment
-      });
-      
-      toast.success('Đã gửi đánh giá thành công!');
-      setNewReview({ rating: 5, title: '', comment: '' });
-      fetchProductData(); // Refresh reviews
-    } catch (error) {
-      console.error('Error submitting review:', error);
-      toast.error('Không thể gửi đánh giá');
-    }
+    
+    setShowReviewModal(true);
   };
 
   if (loading) {
@@ -177,7 +174,6 @@ const ProductDetail = () => {
     );
   }
 
-  const primaryImage = product.images?.find(img => img.is_primary) || product.images?.[0];
   const discount = calculateDiscount();
   
   // Mock related products if not available
@@ -243,15 +239,25 @@ const ProductDetail = () => {
           {/* Images Gallery */}
           <div className="space-y-4">
             {/* Main Image */}
-            <div className="relative bg-white rounded-2xl overflow-hidden shadow-xl aspect-square">
-              <img
-                src={productImages[selectedImage]}
-                alt={product.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80';
-                }}
-              />
+            <div className="relative bg-white rounded-2xl overflow-hidden shadow-xl aspect-square flex items-center justify-center">
+              {productImages[selectedImage] && productImages[selectedImage].startsWith('http') ? (
+                <img
+                  src={productImages[selectedImage]}
+                  alt={product.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80';
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-100 to-pink-100">
+                  <div className="text-center p-8">
+                    <div className="text-6xl mb-4">📦</div>
+                    <p className="text-2xl font-bold text-gray-700">{product.name}</p>
+                    <p className="text-gray-500 mt-2">Hình ảnh sản phẩm</p>
+                  </div>
+                </div>
+              )}
               
               {/* Discount Badge */}
               {discount > 0 && (
@@ -280,27 +286,32 @@ const ProductDetail = () => {
             </div>
 
             {/* Thumbnail Images */}
-            <div className="grid grid-cols-4 gap-4">
-              {productImages.map((image, index) => (
-                <button
-                  key={index}
-                  onClick={() => setSelectedImage(index)}
-                  className={`relative aspect-square rounded-xl overflow-hidden 
-                           border-2 transition-all duration-300
-                           hover:scale-105 ${
-                             selectedImage === index
-                               ? 'border-purple-600 shadow-lg shadow-purple-500/25'
-                               : 'border-gray-200 hover:border-purple-300'
-                           }`}
-                >
-                  <img
-                    src={image}
-                    alt={`${product.name} ${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                </button>
-              ))}
-            </div>
+            {productImages.length > 1 && (
+              <div className="grid grid-cols-4 gap-4">
+                {productImages.map((image, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImage(index)}
+                    className={`relative aspect-square rounded-xl overflow-hidden 
+                             border-2 transition-all duration-300
+                             hover:scale-105 ${
+                               selectedImage === index
+                                 ? 'border-purple-600 shadow-lg shadow-purple-500/25'
+                                 : 'border-gray-200 hover:border-purple-300'
+                             }`}
+                  >
+                    <img
+                      src={image}
+                      alt={`${product.name} ${index + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80';
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Product Info */}
@@ -540,55 +551,21 @@ const ProductDetail = () => {
             <span className="text-gray-600">({reviews.length} đánh giá)</span>
           </div>
           
-          {/* Review Form */}
-          {user ? (
-            <div className="mb-8 p-6 bg-gray-50 rounded-xl">
-              <h3 className="font-bold text-lg mb-4">Viết đánh giá của bạn</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Đánh giá</label>
-                  <div className="flex gap-2">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        onClick={() => setNewReview({ ...newReview, rating: star })}
-                        className="text-3xl transition-colors"
-                      >
-                        <FaStar className={star <= newReview.rating ? 'text-yellow-400' : 'text-gray-300'} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Tiêu đề (tùy chọn)</label>
-                  <input
-                    type="text"
-                    value={newReview.title}
-                    onChange={(e) => setNewReview({ ...newReview, title: e.target.value })}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-600"
-                    placeholder="Tóm tắt đánh giá của bạn"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Nội dung đánh giá</label>
-                  <textarea
-                    value={newReview.comment}
-                    onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
-                    rows="4"
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-600"
-                    placeholder="Chia sẻ trải nghiệm của bạn về sản phẩm..."
-                  />
-                </div>
-                <button
-                  onClick={handleSubmitReview}
-                  className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-lg
-                           hover:from-purple-700 hover:to-pink-700 transition-all"
-                >
-                  Gửi Đánh Giá
-                </button>
-              </div>
+          {/* Review Button */}
+          {canReview && user && (
+            <div className="mb-8">
+              <button
+                onClick={handleOpenReviewModal}
+                className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl
+                         hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-xl"
+              >
+                <FaStar className="inline mr-2" />
+                Viết Đánh Giá Của Bạn
+              </button>
             </div>
-          ) : (
+          )}
+          
+          {!user && (
             <div className="mb-8 p-6 bg-gray-50 rounded-xl text-center">
               <p className="text-gray-600 mb-4">Vui lòng đăng nhập để viết đánh giá</p>
               <button
@@ -692,6 +669,18 @@ const ProductDetail = () => {
           </div>
         )}
       </div>
+
+      {/* Review Modal */}
+      {showReviewModal && (
+        <ReviewModal
+          productId={id}
+          onClose={() => setShowReviewModal(false)}
+          onSuccess={() => {
+            setShowReviewModal(false);
+            fetchProductData();
+          }}
+        />
+      )}
     </div>
   );
 };

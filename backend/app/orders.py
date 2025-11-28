@@ -116,9 +116,29 @@ async def create_order(
     if "id" in order_dict:
         order_dict.pop("id", None)
     
-    order_dict["_id"] = f"order_{get_next_sequence('orders')}"
+    # Generate unique _id using timestamp to avoid duplicates
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
+    order_dict["_id"] = f"order_{timestamp}_{random.randint(1000, 9999)}"
     order_dict["user_id"] = current_user["_id"]  # Set user_id from current_user
-    order_dict["order_number"] = generate_order_number()
+    
+    # Generate unique order_number with retry logic
+    max_retries = 10
+    order_number = None
+    for attempt in range(max_retries):
+        order_number = generate_order_number()
+        # Check if this order_number already exists
+        existing_order = orders_collection.find_one({"order_number": order_number})
+        if not existing_order:
+            break  # Found unique order_number
+        safe_print(f"[WARNING] Order number {order_number} already exists, retrying... (attempt {attempt + 1}/{max_retries})")
+    else:
+        # All retries exhausted
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create order: Unable to generate unique order number"
+        )
+    
+    order_dict["order_number"] = order_number
     order_dict["status"] = OrderStatus.PENDING.value if hasattr(OrderStatus.PENDING, 'value') else OrderStatus.PENDING
     order_dict["payment_status"] = PaymentStatus.PENDING.value if hasattr(PaymentStatus.PENDING, 'value') else PaymentStatus.PENDING
     
@@ -136,61 +156,16 @@ async def create_order(
         "note": "Order created"
     }]
     
-    # Ensure no 'id' field is saved to database (only _id)
-    if "id" in order_dict:
-        order_dict.pop("id", None)
-    
-    # Generate unique _id with retry logic to avoid duplicates
-    max_retries = 5
-    order_id = None
-    for attempt in range(max_retries):
-        try:
-            sequence_num = get_next_sequence('orders')
-            order_id = f"order_{sequence_num}"
-            
-            # Check if this _id already exists
-            existing_order = orders_collection.find_one({"_id": order_id})
-            if existing_order:
-                # If exists, try next sequence (this shouldn't happen but handle it)
-                safe_print(f"[WARNING] Order {order_id} already exists, retrying...")
-                continue
-            
-            order_dict["_id"] = order_id
-            orders_collection.insert_one(order_dict)
-            break  # Success, exit retry loop
-            
-        except Exception as e:
-            error_str = str(e)
-            # Check if it's a duplicate key error
-            if "E11000" in error_str or "duplicate key" in error_str.lower():
-                if attempt < max_retries - 1:
-                    safe_print(f"[WARNING] Duplicate key error for {order_id}, retrying... (attempt {attempt + 1}/{max_retries})")
-                    continue  # Retry with new sequence
-                else:
-                    # Last attempt failed
-                    try:
-                        print(f"[ERROR] Failed to create unique order ID after {max_retries} attempts: {e}")
-                    except UnicodeEncodeError:
-                        print("[ERROR] Failed to create unique order ID (encoding error)")
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to create order: Duplicate key error after retries"
-                    )
-            else:
-                # Other errors
-                try:
-                    print(f"[ERROR] Error inserting order: {e}")
-                except UnicodeEncodeError:
-                    print("[ERROR] Error inserting order (encoding error)")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to create order: {error_str}"
-                )
-    else:
-        # All retries exhausted
+    # Insert order with unique _id
+    try:
+        orders_collection.insert_one(order_dict)
+        safe_print(f"[SUCCESS] Created order {order_dict['_id']} with order_number {order_number}")
+    except Exception as e:
+        error_str = str(e)
+        safe_print(f"[ERROR] Failed to insert order: {error_str}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create order: Unable to generate unique order ID"
+            detail=f"Failed to create order: {error_str}"
         )
     
     # Update product stock and sold count

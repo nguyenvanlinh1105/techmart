@@ -295,7 +295,6 @@ async def get_products(
         result.append(ProductResponse(**prod_dict))
     
     return result
-
 @router.get("/products/count")
 async def count_products(
     category_id: Optional[str] = None,
@@ -349,9 +348,14 @@ async def get_product(product_id: str):
     F10: Product Detail
     """
     
+    # Find product - allow approved OR legacy products (without approval_status)
     product = products_collection.find_one({
         "_id": product_id,
-        "approval_status": ProductApprovalStatus.APPROVED
+        "$or": [
+            {"approval_status": ProductApprovalStatus.APPROVED.value},
+            {"approval_status": {"$exists": False}},
+            {"approval_status": None}
+        ]
     })
     
     if not product:
@@ -404,63 +408,6 @@ async def get_product(product_id: str):
         updated_at=product["updated_at"],
         seller_name=seller_name
     )
-
-@router.get("/products/{product_id}/related", response_model=List[ProductResponse])
-async def get_related_products(product_id: str, limit: int = Query(4, le=20)):
-    """
-    Lấy sản phẩm liên quan
-    F28: Gợi ý sản phẩm liên quan
-    """
-    
-    product = products_collection.find_one({"_id": product_id})
-    
-    if not product:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Product not found"
-        )
-    
-    # Find products in same category, excluding current product
-    related = list(
-        products_collection
-        .find({
-            "category_id": product["category_id"],
-            "_id": {"$ne": product_id}
-        })
-        .limit(limit)
-    )
-    
-    result = []
-    for prod in related:
-        result.append(ProductResponse(
-            id=prod["_id"],
-            name=prod["name"],
-            slug=prod["slug"],
-            description=prod["description"],
-            short_description=prod.get("short_description"),
-            category_id=prod["category_id"],
-            brand=prod.get("brand"),
-            price=prod["price"],
-            compare_price=prod.get("compare_price"),
-            cost_price=prod.get("cost_price"),
-            stock=prod["stock"],
-            sku=prod.get("sku"),
-            images=prod.get("images", []),
-            variants=prod.get("variants", []),
-            tags=prod.get("tags", []),
-            is_featured=prod.get("is_featured", False),
-            is_on_sale=prod.get("is_on_sale", False),
-            meta_title=prod.get("meta_title"),
-            meta_description=prod.get("meta_description"),
-            rating=prod.get("rating", 0.0),
-            review_count=prod.get("review_count", 0),
-            sold_count=prod.get("sold_count", 0),
-            view_count=prod.get("view_count", 0),
-            created_at=prod["created_at"],
-            updated_at=prod["updated_at"]
-        ))
-    
-    return result
 
 # ==================== ADMIN PRODUCT ROUTES (F31) ====================
 
@@ -544,3 +491,98 @@ async def delete_product(
     
     return {"message": "Product deleted successfully"}
 
+
+
+# ==================== RELATED PRODUCTS & REVIEWS ====================
+
+@router.get("/products/{product_id}/related", response_model=List[ProductResponse])
+async def get_related_products(
+    product_id: str,
+    limit: int = Query(8, ge=1, le=20)
+):
+    """Lấy sản phẩm liên quan (cùng danh mục)"""
+    
+    # Get current product
+    product = products_collection.find_one({"_id": product_id})
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found"
+        )
+    
+    # Find products in same category, exclude current product
+    query = {
+        "category_id": product["category_id"],
+        "_id": {"$ne": product_id},
+        "$or": [
+            {"approval_status": ProductApprovalStatus.APPROVED.value},
+            {"approval_status": {"$exists": False}},
+            {"approval_status": None}
+        ]
+    }
+    
+    related = list(
+        products_collection
+        .find(query)
+        .limit(limit)
+    )
+    
+    result = []
+    for prod in related:
+        seller_name = None
+        if prod.get("seller_id"):
+            seller = users_collection.find_one({"_id": prod["seller_id"]})
+            if seller:
+                seller_name = seller.get("full_name")
+        
+        result.append(ProductResponse(
+            id=prod["_id"],
+            name=prod["name"],
+            slug=prod["slug"],
+            description=prod["description"],
+            short_description=prod.get("short_description"),
+            category_id=prod["category_id"],
+            brand=prod.get("brand"),
+            price=prod["price"],
+            compare_price=prod.get("compare_price"),
+            cost_price=prod.get("cost_price"),
+            stock=prod["stock"],
+            sku=prod.get("sku"),
+            images=prod.get("images", []),
+            variants=prod.get("variants", []),
+            tags=prod.get("tags", []),
+            is_featured=prod.get("is_featured", False),
+            is_on_sale=prod.get("is_on_sale", False),
+            meta_title=prod.get("meta_title"),
+            meta_description=prod.get("meta_description"),
+            seller_id=prod.get("seller_id"),
+            store_name=prod.get("store_name"),
+            approval_status=prod.get("approval_status"),
+            rating=prod.get("rating", 0.0),
+            review_count=prod.get("review_count", 0),
+            sold_count=prod.get("sold_count", 0),
+            view_count=prod.get("view_count", 0),
+            created_at=prod["created_at"],
+            updated_at=prod["updated_at"],
+            seller_name=seller_name
+        ))
+    
+    return result
+
+@router.get("/products/{product_id}/reviews")
+async def get_product_reviews(
+    product_id: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100)
+):
+    """Lấy đánh giá của sản phẩm"""
+    
+    # Check if product exists
+    if not products_collection.find_one({"_id": product_id}):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found"
+        )
+    
+    # For now, return empty list (reviews feature can be implemented later)
+    return []

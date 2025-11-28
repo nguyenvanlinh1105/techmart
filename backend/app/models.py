@@ -233,18 +233,52 @@ class CartResponse(CartBase):
     updated_at: datetime
 
 # ==================== COUPON MODELS (F17, F35) ====================
+class CouponType(str, Enum):
+    PERCENTAGE = "percentage"  # Giảm %
+    FIXED = "fixed"  # Giảm cố định
+    FREESHIP = "freeship"  # Miễn phí ship
+    BUY_X_GET_Y = "buy_x_get_y"  # Mua X tặng Y
+    TIERED = "tiered"  # Giảm theo bậc
+
+class CouponTarget(str, Enum):
+    ALL = "all"  # Tất cả
+    CATEGORY = "category"  # Theo danh mục
+    PRODUCT = "product"  # Theo sản phẩm
+    SELLER = "seller"  # Theo người bán
+    NEW_USER = "new_user"  # Khách hàng mới
+    VIP = "vip"  # Khách VIP
+
 class CouponBase(BaseModel):
     code: str
     description: Optional[str] = None
-    discount_type: str = "percentage"  # percentage or fixed
+    discount_type: CouponType = CouponType.PERCENTAGE
     discount_value: float
+    
+    # Điều kiện áp dụng
     min_order_value: Optional[float] = None
     max_discount: Optional[float] = None
+    target_type: CouponTarget = CouponTarget.ALL
+    target_ids: List[str] = []  # IDs của category/product/seller
+    
+    # Giới hạn sử dụng
     valid_from: datetime
     valid_to: datetime
-    usage_limit: Optional[int] = None
+    usage_limit: Optional[int] = None  # Tổng số lần sử dụng
+    usage_per_user: Optional[int] = None  # Số lần/user
     used_count: int = 0
+    
+    # Tính năng nâng cao
     is_active: bool = True
+    is_auto_apply: bool = False  # Tự động áp dụng
+    priority: int = 0  # Độ ưu tiên (cao hơn = ưu tiên hơn)
+    stackable: bool = False  # Có thể dùng chung với mã khác
+    
+    # Buy X Get Y
+    buy_quantity: Optional[int] = None
+    get_quantity: Optional[int] = None
+    
+    # Tiered discount
+    tiers: Optional[List[Dict[str, float]]] = None  # [{"min": 100000, "discount": 10}, ...]
 
 class CouponCreate(CouponBase):
     pass
@@ -252,12 +286,18 @@ class CouponCreate(CouponBase):
 class CouponUpdate(BaseModel):
     description: Optional[str] = None
     discount_value: Optional[float] = None
+    min_order_value: Optional[float] = None
+    max_discount: Optional[float] = None
     valid_to: Optional[datetime] = None
+    usage_limit: Optional[int] = None
     is_active: Optional[bool] = None
+    is_auto_apply: Optional[bool] = None
+    priority: Optional[int] = None
 
 class CouponResponse(CouponBase):
     id: str
     created_at: datetime
+    usage_stats: Optional[Dict[str, Any]] = None  # Thống kê sử dụng
 
 # ==================== ORDER MODELS (F18-F22) ====================
 class OrderItem(BaseModel):

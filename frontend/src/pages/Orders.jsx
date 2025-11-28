@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   FaBox, 
@@ -9,11 +9,12 @@ import {
   FaClock,
   FaCheckCircle,
   FaShippingFast,
-  FaTruck
+  FaStar
 } from 'react-icons/fa';
 import { orderService } from '../services/orderService';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
+import ReviewModal from '../components/ReviewModal';
 
 const Orders = () => {
   const navigate = useNavigate();
@@ -21,6 +22,8 @@ const Orders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('all');
+  const [reviewingProduct, setReviewingProduct] = useState(null);
+  const [reviewingOrder, setReviewingOrder] = useState(null);
 
   useEffect(() => {
     console.log('📍 Orders.jsx useEffect triggered');
@@ -252,16 +255,53 @@ const Orders = () => {
                   <div className="space-y-4 mb-4">
                     {order.items?.slice(0, 2).map((item, index) => (
                       <div key={index} className="flex items-center gap-4">
-                        <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <FaBox className="w-6 h-6 text-gray-400" />
+                        <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                          {item.product_image ? (
+                            <img
+                              src={item.product_image}
+                              alt={item.product_name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.parentElement.innerHTML = '<div class="w-full h-full flex items-center justify-center"><svg class="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path></svg></div>';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <FaBox className="w-6 h-6 text-gray-400" />
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-gray-900 truncate">{item.product_name}</p>
-                          <p className="text-sm text-gray-600">Số lượng: {item.quantity}</p>
+                          <p className="text-sm text-gray-600">
+                            Số lượng: {item.quantity}
+                            {item.variant && (item.variant.size || item.variant.color) && (
+                              <span className="ml-2 text-gray-500">
+                                ({[item.variant.size, item.variant.color].filter(Boolean).join(', ')})
+                              </span>
+                            )}
+                          </p>
                         </div>
-                        <p className="font-bold text-purple-600 flex-shrink-0">
-                          {formatPrice(item.price * item.quantity)}
-                        </p>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <p className="font-bold text-purple-600">
+                            {formatPrice(item.price * item.quantity)}
+                          </p>
+                          {order.status === 'delivered' && (
+                            <button
+                              onClick={() => {
+                                setReviewingProduct(item);
+                                setReviewingOrder(order);
+                              }}
+                              className="px-4 py-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 
+                                       font-semibold rounded-lg transition-colors flex items-center gap-2
+                                       border border-yellow-200"
+                            >
+                              <FaStar className="w-4 h-4" />
+                              Đánh giá
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                     {order.items?.length > 2 && (
@@ -334,10 +374,24 @@ const Orders = () => {
             </a>
           </div>
         </div>
+
+        {/* Review Modal */}
+        {reviewingProduct && (
+          <ReviewModal
+            product={reviewingProduct}
+            orderId={reviewingOrder?.id || reviewingOrder?._id}
+            onClose={() => {
+              setReviewingProduct(null);
+              setReviewingOrder(null);
+            }}
+            onSuccess={() => {
+              fetchOrders(); // Refresh orders
+            }}
+          />
+        )}
       </div>
     </div>
   );
 };
 
 export default Orders;
-
