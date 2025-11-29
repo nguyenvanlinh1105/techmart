@@ -4,7 +4,7 @@ Chat API - Realtime messaging system
 
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from bson import ObjectId
 
 from .database import messages_collection, conversations_collection, get_next_sequence
@@ -137,6 +137,7 @@ async def send_message(
         image_url = f"http://localhost:8000/uploads/chat/{filename}"
     
     # Create message
+    vn_now = datetime.utcnow() + timedelta(hours=7)
     message = {
         "_id": f"msg_{get_next_sequence('messages')}",
         "conversation_id": conversation_id,
@@ -147,7 +148,7 @@ async def send_message(
         "message_type": message_type,
         "image_url": image_url,
         "is_read": False,
-        "created_at": datetime.utcnow()
+        "created_at": vn_now
     }
     
     messages_collection.insert_one(message)
@@ -253,6 +254,7 @@ async def admin_send_message(
         image_url = f"http://localhost:8000/uploads/chat/{filename}"
     
     # Create message
+    vn_now = datetime.utcnow() + timedelta(hours=7)
     message = {
         "_id": f"msg_{get_next_sequence('messages')}",
         "conversation_id": conversation_id,
@@ -263,7 +265,7 @@ async def admin_send_message(
         "message_type": message_type,
         "image_url": image_url,
         "is_read": False,
-        "created_at": datetime.utcnow()
+        "created_at": vn_now
     }
     
     messages_collection.insert_one(message)
