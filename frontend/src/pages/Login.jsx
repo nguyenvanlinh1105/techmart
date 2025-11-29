@@ -93,7 +93,11 @@ const Login = () => {
   };
 
   const handleSocialLogin = (provider) => {
-    console.log(`Login with ${provider}`);
+    if (provider === "Google") {
+      window.location.href = "http://localhost:8000/api/auth/google";
+    } else {
+      console.log(`Login with ${provider}`);
+    }
   };
 
   return (

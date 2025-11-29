@@ -4,6 +4,10 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from typing import Optional
+from fastapi.responses import RedirectResponse
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+import requests 
 import secrets
 import os
 
@@ -109,6 +113,11 @@ async def get_current_seller(current_user: dict = Depends(get_current_user)):
     return current_user
 
 # ==================== F01: Đăng ký tài khoản ====================
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserCreate):
     """Đăng ký tài khoản mới"""
@@ -579,3 +588,128 @@ async def set_default_address(
         created_at=updated_user["created_at"],
         addresses=updated_user.get("addresses", [])
     )
+
+# ==================== Google Authentication ====================
+@router.get("/google")
+async def google_login():
+    """Redirect user đến trang đăng nhập của Google"""
+    google_auth_url = (
+        "https://accounts.google.com/o/oauth2/v2/auth"
+        "?response_type=code"
+        f"&client_id={GOOGLE_CLIENT_ID}"
+        f"&redirect_uri={GOOGLE_REDIRECT_URI}"
+        "&scope=openid%20email%20profile"
+        "&access_type=offline"
+        "&prompt=select_account"
+    )
+    return RedirectResponse(google_auth_url)
+
+
+@router.get("/google/callback")
+async def google_callback(code: str):
+    """
+    Xử lý:
+    1. Đổi code lấy token Google.
+    2. Lấy info user (email, name, avatar).
+    3. Nếu chưa có user trong DB -> Tự động tạo (Auto Register).
+    4. Nếu có rồi -> Cập nhật avatar/login.
+    5. Redirect về Frontend kèm Access Token.
+    """
+    
+    # 1. Đổi Authorization Code lấy Access Token & ID Token
+    token_url = "https://oauth2.googleapis.com/token"
+    payload = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "code": code,
+        "grant_type": "authorization_code",
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+    }
+    
+    try:
+        res = requests.post(token_url, data=payload)
+        token_data = res.json()
+    except Exception as e:
+        # Redirect về frontend báo lỗi
+        return RedirectResponse(f"{FRONTEND_URL}/login?error=google_connection_error")
+
+    if "error" in token_data:
+         return RedirectResponse(f"{FRONTEND_URL}/login?error={token_data.get('error_description')}")
+
+    # 2. Xác thực ID Token
+    try:
+        id_info = id_token.verify_oauth2_token(
+            token_data["id_token"],
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID,
+            clock_skew_in_seconds=10
+        )
+    except ValueError:
+        return RedirectResponse(f"{FRONTEND_URL}/login?error=invalid_token")
+
+    email = id_info.get("email")
+    name = id_info.get("name", email.split("@")[0])
+    picture = id_info.get("picture")
+
+    if not email:
+        return RedirectResponse(f"{FRONTEND_URL}/login?error=no_email")
+
+    # 3. Kiểm tra User trong DB
+    user = users_collection.find_one({"email": email})
+
+    if not user:
+        # === USER CHƯA TỒN TẠI -> TẠO MỚI (AUTO REGISTER) ===
+        try:
+            # Tạo password ngẫu nhiên (User Google không cần biết password này)
+            random_password = secrets.token_urlsafe(16)
+            hashed_pwd = hash_password(random_password)
+            
+            new_id = f"user_{get_next_sequence('users')}"
+            
+            new_user = {
+                "_id": new_id,
+                "email": email,
+                "password": hashed_pwd,
+                "full_name": name,
+                "phone": None,
+                "role": UserRole.USER.value, # Mặc định là User
+                "avatar": picture,
+                "is_verified": True, # Đã verify qua Google
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+                "addresses": []
+            }
+            
+            users_collection.insert_one(new_user)
+            user = new_user # Gán user mới để tạo token
+            
+            log_activity(new_id, "USER_REGISTER_GOOGLE", {"email": email})
+            create_notification_safe(
+                user_id=new_id, type="system", title="Xin chào!", 
+                message="Chào mừng bạn đến với TechMart. Tài khoản đã được tạo qua Google."
+            )
+            
+        except Exception as e:
+            print(f"Error creating google user: {e}")
+            return RedirectResponse(f"{FRONTEND_URL}/login?error=create_user_failed")
+            
+    else:
+        # === USER ĐÃ TỒN TẠI -> CẬP NHẬT ===
+        if user["role"] == UserRole.ADMIN.value:
+            # Tùy chọn: Chặn admin login bằng Google nếu muốn bảo mật
+            # return RedirectResponse(f"{FRONTEND_URL}/login?error=admin_google_not_allowed")
+            pass
+
+        update_fields = {"updated_at": datetime.utcnow()}
+        # Cập nhật avatar nếu chưa có
+        if not user.get("avatar") and picture:
+            update_fields["avatar"] = picture
+            
+        users_collection.update_one({"_id": user["_id"]}, {"$set": update_fields})
+        log_activity(user["_id"], "USER_LOGIN_GOOGLE")
+
+    # 4. Tạo Access Token
+    access_token = create_access_token(data={"sub": user["_id"]})
+
+    # 5. Redirect về Frontend (URL: http://localhost:3000/auth/callback?token=...)
+    return RedirectResponse(url=f"{FRONTEND_URL}/auth/callback?token={access_token}")

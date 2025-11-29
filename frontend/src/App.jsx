@@ -7,7 +7,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
 import AdminLayout from './components/admin/AdminLayout';
-
+import GoogleCallback from "./pages/GoogleCallback";
 // Pages
 import Home from './pages/Home';
 import Products from './pages/Products';
@@ -61,6 +61,8 @@ function App() {
               </div>
             } />
             
+            <Route path="/auth/callback" element={<GoogleCallback />} />
+
             <Route path="/products" element={
               <div className="flex flex-col min-h-screen">
                 <Header />
