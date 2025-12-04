@@ -10,7 +10,7 @@ from .models import (
 )
 from .database import (
     orders_collection, products_collection, carts_collection,
-    coupons_collection, notifications_collection,
+    coupons_collection, notifications_collection, users_collection,
     get_next_sequence, log_activity, create_notification_safe
 )
 from .auth import get_current_user, get_current_admin
@@ -186,7 +186,7 @@ async def create_order(
         {"$set": {"items": []}}
     )
     
-    # Create notification (safe function handles retries)
+    # Create notification for user (safe function handles retries)
     create_notification_safe(
         user_id=current_user["_id"],
         type="order",
@@ -194,6 +194,18 @@ async def create_order(
         message=f"Đơn hàng #{order_dict['order_number']} đã được tạo thành công. Tổng tiền: {order_data.total:,} VNĐ",
         link=f"/orders/{order_dict['_id']}"
     )
+    
+    # Create notification for ALL admins when new order is placed
+    admin_users = users_collection.find({"role": "admin"})
+    
+    for admin in admin_users:
+        create_notification_safe(
+            user_id=admin["_id"],
+            type="order",
+            title="🆕 Đơn hàng mới",
+            message=f"Đơn hàng #{order_dict['order_number']} từ {current_user.get('full_name', 'Khách hàng')} - {order_data.total:,} VNĐ",
+            link=f"/admin/orders?highlight={order_dict['_id']}"
+        )
     
     log_activity(current_user["_id"], "ORDER_CREATED", {
         "order_id": order_dict["_id"],
@@ -555,25 +567,40 @@ async def update_order_status(
         {"$set": update_data}
     )
     
-    # Create notification for user
+    # Create notification for user when order status changes
     if order_update.status:
-        status_messages = {
-            OrderStatus.CONFIRMED: "da duoc xac nhan",
-            OrderStatus.PROCESSING: "dang duoc xu ly",
-            OrderStatus.SHIPPING: "dang duoc giao",
-            OrderStatus.DELIVERED: "da duoc giao thanh cong",
-            OrderStatus.CANCELLED: "da bi huy"
+        status_configs = {
+            OrderStatus.CONFIRMED: {
+                "title": "✅ Đơn hàng đã được xác nhận",
+                "message": f"Đơn hàng #{order['order_number']} của bạn đã được xác nhận. Chúng tôi sẽ bắt đầu xử lý đơn hàng ngay!"
+            },
+            OrderStatus.PROCESSING: {
+                "title": "⚙️ Đơn hàng đang được xử lý",
+                "message": f"Đơn hàng #{order['order_number']} đang được chuẩn bị. Chúng tôi sẽ thông báo khi đơn hàng được giao!"
+            },
+            OrderStatus.SHIPPING: {
+                "title": "🚚 Đơn hàng đang được giao",
+                "message": f"Đơn hàng #{order['order_number']} đã được giao cho đơn vị vận chuyển. Bạn sẽ nhận được hàng trong thời gian sớm nhất!"
+            },
+            OrderStatus.DELIVERED: {
+                "title": "🎉 Đơn hàng đã được giao thành công",
+                "message": f"Đơn hàng #{order['order_number']} đã được giao thành công. Cảm ơn bạn đã mua sắm tại TechMart!"
+            },
+            OrderStatus.CANCELLED: {
+                "title": "❌ Đơn hàng đã bị hủy",
+                "message": f"Đơn hàng #{order['order_number']} đã bị hủy. Nếu bạn có thắc mắc, vui lòng liên hệ với chúng tôi."
+            }
         }
         
-        message = status_messages.get(order_update.status, "da duoc cap nhat")
-        
-        create_notification_safe(
-            user_id=order["user_id"],
-            type="order",
-            title=f"Cập nhật đơn hàng #{order['order_number']}",
-            message=f"Đơn hàng của bạn {message}",
-            link=f"/orders/{order_id}"
-        )
+        config = status_configs.get(order_update.status)
+        if config:
+            create_notification_safe(
+                user_id=order["user_id"],
+                type="order",
+                title=config["title"],
+                message=config["message"],
+                link=f"/orders/{order_id}"
+            )
     
     log_activity(current_user["_id"], "ORDER_UPDATED", {
         "order_id": order_id,

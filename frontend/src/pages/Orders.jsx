@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   FaBox, 
   FaEye, 
@@ -18,12 +18,32 @@ import ReviewModal from '../components/ReviewModal';
 
 const Orders = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, loading: authLoading } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('all');
   const [reviewingProduct, setReviewingProduct] = useState(null);
   const [reviewingOrder, setReviewingOrder] = useState(null);
+  const [highlightedOrderId, setHighlightedOrderId] = useState(null);
+
+  // Check for highlight parameter from notification click
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const highlightId = params.get('highlight')
+    if (highlightId) {
+      setHighlightedOrderId(highlightId)
+      // Scroll to highlighted order after load
+      setTimeout(() => {
+        const element = document.getElementById(`order-${highlightId}`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          // Remove highlight after 5 seconds
+          setTimeout(() => setHighlightedOrderId(null), 5000)
+        }
+      }, 1000)
+    }
+  }, [location.search])
 
   useEffect(() => {
     console.log('📍 Orders.jsx useEffect triggered');
@@ -225,10 +245,18 @@ const Orders = () => {
           </div>
         ) : (
           <div className="space-y-6">
-            {orders.map((order) => (
+            {orders.map((order) => {
+              const orderId = order.id || order._id
+              const isHighlighted = highlightedOrderId === orderId
+              return (
               <div
-                key={order.id || order._id}
-                className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300"
+                key={orderId}
+                id={`order-${orderId}`}
+                className={`bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 ${
+                  isHighlighted 
+                    ? 'bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-l-purple-500 shadow-xl ring-4 ring-purple-200' 
+                    : ''
+                }`}
               >
                 {/* Order Header */}
                 <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
@@ -347,7 +375,8 @@ const Orders = () => {
                   </div>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
 

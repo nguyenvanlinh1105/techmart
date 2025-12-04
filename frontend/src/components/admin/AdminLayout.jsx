@@ -3,10 +3,11 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, 
-  FaChartLine, FaTags, FaBell, FaCog, FaSignOutAlt,
+  FaChartLine, FaTags, FaCog, FaSignOutAlt,
   FaBars, FaTimes, FaHome, FaStore
 } from 'react-icons/fa'
 import { toast } from 'react-hot-toast'
+import AdminNotifications from './AdminNotifications'
 
 const AdminLayout = () => {
   const { user, logout } = useAuth()
@@ -159,12 +160,8 @@ const AdminLayout = () => {
           </div>
 
           <div className="flex items-center space-x-4">
-            <button className="relative w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center text-gray-600 transition-colors">
-              <FaBell className="text-xl" />
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
-                3
-              </span>
-            </button>
+            {/* Real-time Notifications */}
+            <AdminNotifications />
             
             <button className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center text-gray-600 transition-colors">
               <FaCog className="text-xl" />

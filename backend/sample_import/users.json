@@ -1,0 +1,42 @@
+[
+  {
+    "_id": "user_sample_1",
+    "email": "seller1@example.com",
+    "password": "$2b$12$ckQQoEuPsiM2xwKGGmcPq.TMaAbmyUBEtNKfYYWgKIeGIdk8P1GLW",
+    "full_name": "Người Bán 1",
+    "phone": "0901111111",
+    "role": "seller",
+    "seller_status": "approved",
+    "store_name": "Cửa Hàng Điện Tử ABC",
+    "is_verified": true,
+    "created_at": "2025-12-04T02:15:29.986251+00:00",
+    "updated_at": "2025-12-04T02:15:29.986251+00:00",
+    "addresses": []
+  },
+  {
+    "_id": "user_sample_2",
+    "email": "seller2@example.com",
+    "password": "$2b$12$xJivcJ80myuSWTQkhRRY/eSwzr9umum0eI.GzdjveJJ2J/.IGVr0e",
+    "full_name": "Người Bán 2",
+    "phone": "0902222222",
+    "role": "seller",
+    "seller_status": "pending",
+    "store_name": "Cửa Hàng Thời Trang XYZ",
+    "is_verified": true,
+    "created_at": "2025-12-04T02:15:30.262947+00:00",
+    "updated_at": "2025-12-04T02:15:30.262947+00:00",
+    "addresses": []
+  },
+  {
+    "_id": "user_sample_3",
+    "email": "customer1@example.com",
+    "password": "$2b$12$PBoBP.XrsRayPbZMDq3C2uAehDxkdUC4nWG8c4EV2r/CoN800xZJ.",
+    "full_name": "Khách Hàng 1",
+    "phone": "0903333333",
+    "role": "user",
+    "is_verified": true,
+    "created_at": "2025-12-04T02:15:30.533785+00:00",
+    "updated_at": "2025-12-04T02:15:30.533785+00:00",
+    "addresses": []
+  }
+]

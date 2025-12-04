@@ -1,15 +1,48 @@
 import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { FaEye, FaCheck, FaTruck, FaTimes, FaFilter, FaSearch } from 'react-icons/fa'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 
 const AdminOrders = () => {
+  const location = useLocation()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [showModal, setShowModal] = useState(false)
+  const [highlightedOrderId, setHighlightedOrderId] = useState(null)
+
+  // Check for highlight parameter from notification click
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const highlightId = params.get('highlight')
+    const statusParam = params.get('status')
+    
+    if (highlightId) {
+      setHighlightedOrderId(highlightId)
+      // Only auto-filter to pending if status param is not set
+      // This allows viewing delivered orders even when clicking notification
+      if (!statusParam) {
+        setStatusFilter('pending')
+      }
+      // Scroll to highlighted order after load
+      setTimeout(() => {
+        const element = document.getElementById(`order-${highlightId}`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          // Remove highlight after 5 seconds
+          setTimeout(() => setHighlightedOrderId(null), 5000)
+        }
+      }, 1000)
+    }
+    
+    // Also check for status filter in URL
+    if (statusParam) {
+      setStatusFilter(statusParam)
+    }
+  }, [location.search])
 
   useEffect(() => {
     fetchOrders()
@@ -87,7 +120,8 @@ const AdminOrders = () => {
 
   const filteredOrders = orders.filter(order =>
     order.order_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.user_email?.toLowerCase().includes(searchTerm.toLowerCase())
+    order.user_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    order.shipping_address?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   return (
@@ -116,7 +150,10 @@ const AdminOrders = () => {
 
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value)
+              setHighlightedOrderId(null) // Clear highlight when filtering
+            }}
             className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none"
           >
             <option value="">Tất cả trạng thái</option>
@@ -153,8 +190,18 @@ const AdminOrders = () => {
               <tbody className="divide-y divide-gray-200">
                 {filteredOrders.map((order) => {
                   const config = statusConfig[order.status] || statusConfig.pending
+                  const orderId = order.id || order._id
+                  const isHighlighted = highlightedOrderId === orderId
                   return (
-                    <tr key={order.id || order._id} className="hover:bg-gray-50 transition-colors">
+                    <tr 
+                      key={orderId} 
+                      id={`order-${orderId}`}
+                      className={`hover:bg-gray-50 transition-all duration-300 ${
+                        isHighlighted 
+                          ? 'bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-l-purple-500 shadow-md' 
+                          : ''
+                      }`}
+                    >
                       <td className="px-6 py-4">
                         <span className="font-mono font-bold text-purple-600">
                           #{order.order_number}
