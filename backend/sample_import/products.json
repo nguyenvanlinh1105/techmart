@@ -1,0 +1,90 @@
+[
+  {
+    "_id": "product_sample_1",
+    "name": "Laptop Dell XPS 15",
+    "slug": "laptop-dell-xps-15",
+    "description": "Laptop cao cấp với màn hình 15 inch, CPU Intel i7, RAM 16GB",
+    "short_description": "Laptop Dell XPS 15 cao cấp",
+    "category_id": "category_laptop_001",
+    "brand": "Dell",
+    "price": 35000000,
+    "compare_price": 40000000,
+    "stock": 5,
+    "sku": "DELL-XPS15-001",
+    "images": [
+      {
+        "url": "https://example.com/dell-xps15.jpg",
+        "is_primary": true,
+        "alt_text": "Dell XPS 15"
+      }
+    ],
+    "variants": [],
+    "tags": [
+      "laptop",
+      "dell",
+      "xps",
+      "cao-cap"
+    ],
+    "is_featured": true,
+    "is_on_sale": true,
+    "seller_id": "user_sample_1",
+    "store_name": "Cửa Hàng Điện Tử ABC",
+    "approval_status": "approved",
+    "rating": 0.0,
+    "review_count": 0,
+    "sold_count": 0,
+    "view_count": 0,
+    "created_at": "2025-12-04T02:15:30.535687+00:00",
+    "updated_at": "2025-12-04T02:15:30.535687+00:00"
+  },
+  {
+    "_id": "product_sample_2",
+    "name": "Áo Thun Nam Basic",
+    "slug": "ao-thun-nam-basic",
+    "description": "Áo thun nam chất liệu cotton 100%, thoáng mát, dễ giặt",
+    "short_description": "Áo thun nam basic",
+    "category_id": "category_thoi-trang-nam_001",
+    "brand": "Basic",
+    "price": 150000,
+    "compare_price": 200000,
+    "stock": 50,
+    "sku": "TSHIRT-BASIC-001",
+    "images": [
+      {
+        "url": "https://example.com/ao-thun.jpg",
+        "is_primary": true,
+        "alt_text": "Áo thun nam"
+      }
+    ],
+    "variants": [
+      {
+        "size": "M",
+        "color": "Trắng",
+        "stock": 20,
+        "price_adjustment": 0
+      },
+      {
+        "size": "L",
+        "color": "Đen",
+        "stock": 30,
+        "price_adjustment": 0
+      }
+    ],
+    "tags": [
+      "ao-thun",
+      "nam",
+      "basic"
+    ],
+    "is_featured": false,
+    "is_on_sale": true,
+    "seller_id": "user_sample_2",
+    "store_name": "Cửa Hàng Thời Trang XYZ",
+    "approval_status": "pending",
+    "rating": 0.0,
+    "review_count": 0,
+    "sold_count": 0,
+    "view_count": 0,
+    "created_at": "2025-12-04T02:15:30.535687+00:00",
+    "updated_at": "2025-12-04T02:15:30.535687+00:00"
+  }
+]
