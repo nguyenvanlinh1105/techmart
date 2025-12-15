@@ -29,6 +29,9 @@ const Products = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalProducts, setTotalProducts] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const itemsPerPage = 20;
 
   useEffect(() => {
     fetchCategories();
@@ -37,6 +40,10 @@ const Products = () => {
   // Sync URL params with filters
   useEffect(() => {
     const categoryParam = searchParams.get('category');
+    const searchParam = searchParams.get('search');
+    
+    // Reset to page 1 when URL params change
+    setCurrentPage(1);
     
     if (categoryParam) {
       // Only update if different from current selection
@@ -57,10 +64,10 @@ const Products = () => {
     }
   }, [searchParams]);
 
-  // Fetch products when filters or sort changes
+  // Fetch products when filters, sort, or page changes
   useEffect(() => {
     fetchProducts();
-  }, [selectedFilters, sortBy, searchParams]);
+  }, [selectedFilters, sortBy, searchParams, currentPage]);
 
   const fetchCategories = async () => {
     try {
@@ -94,15 +101,22 @@ const Products = () => {
         brand: selectedFilters.brands.length > 0 ? selectedFilters.brands[0] : undefined,
         sort_by: sortBy,
         sort_order: sortOrder,
-        limit: 20
+        page: currentPage,
+        limit: itemsPerPage
       };
 
       // Remove undefined values
       Object.keys(filters).forEach(key => filters[key] === undefined && delete filters[key]);
 
-      const data = await productService.getProducts(filters);
-      setProducts(data);
-      setTotalProducts(data.length);
+      // Get products and total count
+      const [productsData, countData] = await Promise.all([
+        productService.getProducts(filters),
+        productService.getProductsCount(filters)
+      ]);
+      
+      setProducts(productsData);
+      setTotalProducts(countData.total);
+      setTotalPages(Math.ceil(countData.total / itemsPerPage));
     } catch (error) {
       console.error('Error fetching products:', error);
       setProducts([]);
@@ -131,6 +145,9 @@ const Products = () => {
       categories: newCategories
     }));
     
+    // Reset to page 1 when filter changes
+    setCurrentPage(1);
+    
     // Update URL to reflect the change
     const newParams = new URLSearchParams(searchParams);
     if (newCategories.length > 0) {
@@ -148,6 +165,8 @@ const Products = () => {
         ? prev.brands.filter(b => b !== brand)
         : [...prev.brands, brand]
     }));
+    // Reset to page 1 when filter changes
+    setCurrentPage(1);
   };
 
   if (loading) {
@@ -167,10 +186,13 @@ const Products = () => {
       <div className="bg-gradient-to-r from-purple-600 to-pink-600 py-8 md:py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-black text-white mb-2 md:mb-4">
-            Tất Cả Sản Phẩm
+            {searchParams.get('search') ? `Kết quả tìm kiếm: "${searchParams.get('search')}"` : 'Tất Cả Sản Phẩm'}
           </h1>
           <p className="text-base md:text-xl text-white/90">
             Hiển thị {totalProducts} sản phẩm
+            {searchParams.get('category') && categories.find(c => c.id === searchParams.get('category')) && 
+              ` trong danh mục "${categories.find(c => c.id === searchParams.get('category')).name}"`
+            }
           </p>
         </div>
       </div>
@@ -198,6 +220,7 @@ const Products = () => {
                         rating: 0,
                         inStock: false,
                       });
+                      setCurrentPage(1); // Reset to page 1 when clearing filters
                       // Clear URL params
                       window.history.replaceState({}, '', window.location.pathname);
                     }}
@@ -237,10 +260,13 @@ const Products = () => {
                       max="100000000"
                       step="1000000"
                       value={selectedFilters.priceRange[1]}
-                      onChange={(e) => setSelectedFilters(prev => ({
-                        ...prev,
-                        priceRange: [0, parseInt(e.target.value)]
-                      }))}
+                      onChange={(e) => {
+                        setSelectedFilters(prev => ({
+                          ...prev,
+                          priceRange: [0, parseInt(e.target.value)]
+                        }));
+                        setCurrentPage(1); // Reset to page 1 when filter changes
+                      }}
                       className="w-full accent-purple-600"
                     />
                     <div className="flex items-center justify-between text-sm">
@@ -279,10 +305,13 @@ const Products = () => {
                     {[5, 4, 3, 2, 1].map((rating) => (
                       <button
                         key={rating}
-                        onClick={() => setSelectedFilters(prev => ({ 
-                          ...prev, 
-                          rating: prev.rating === rating ? 0 : rating 
-                        }))}
+                        onClick={() => {
+                          setSelectedFilters(prev => ({ 
+                            ...prev, 
+                            rating: prev.rating === rating ? 0 : rating 
+                          }));
+                          setCurrentPage(1); // Reset to page 1 when filter changes
+                        }}
                         className={`flex items-center gap-2 w-full p-2.5 rounded-lg 
                                   transition-colors text-left ${
                                     selectedFilters.rating === rating
@@ -314,10 +343,13 @@ const Products = () => {
                     <input
                       type="checkbox"
                       checked={selectedFilters.inStock}
-                      onChange={(e) => setSelectedFilters(prev => ({
-                        ...prev,
-                        inStock: e.target.checked
-                      }))}
+                      onChange={(e) => {
+                        setSelectedFilters(prev => ({
+                          ...prev,
+                          inStock: e.target.checked
+                        }));
+                        setCurrentPage(1); // Reset to page 1 when filter changes
+                      }}
                       className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
                     />
                     <span className="font-semibold text-gray-900">Chỉ Còn Hàng</span>
@@ -375,7 +407,10 @@ const Products = () => {
                 <div className="relative">
                   <select
                     value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
+                    onChange={(e) => {
+                      setSortBy(e.target.value);
+                      setCurrentPage(1); // Reset to page 1 when sort changes
+                    }}
                     className="appearance-none px-4 py-2 pr-10 bg-gray-100 border border-gray-200 
                              rounded-lg font-semibold text-gray-900
                              focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500
@@ -404,31 +439,98 @@ const Products = () => {
             </div>
 
             {/* Pagination */}
-            <div className="mt-12 flex justify-center">
-              <div className="flex items-center gap-2">
-                <button className="px-4 py-2 rounded-lg border border-gray-300 
-                                 hover:bg-gray-50 transition-colors disabled:opacity-50"
-                        disabled>
-                  Previous
-                </button>
-                {[1, 2, 3, 4, 5].map((page) => (
-                  <button
-                    key={page}
-                    className={`w-10 h-10 rounded-lg font-semibold transition-colors ${
-                      page === 1
-                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
-                        : 'border border-gray-300 hover:bg-gray-50'
-                    }`}
+            {totalPages > 1 && (
+              <div className="mt-12 flex justify-center">
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    className="px-4 py-2 rounded-lg border border-gray-300 
+                             hover:bg-gray-50 transition-colors disabled:opacity-50"
+                    disabled={currentPage === 1}
                   >
-                    {page}
+                    Trước
                   </button>
-                ))}
-                <button className="px-4 py-2 rounded-lg border border-gray-300 
-                                 hover:bg-gray-50 transition-colors">
-                  Next
-                </button>
+                  
+                  {/* Page Numbers */}
+                  {(() => {
+                    const pages = [];
+                    const maxVisiblePages = 5;
+                    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+                    
+                    // Adjust start if we're near the end
+                    if (endPage - startPage + 1 < maxVisiblePages) {
+                      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                    }
+                    
+                    // First page + ellipsis
+                    if (startPage > 1) {
+                      pages.push(
+                        <button
+                          key={1}
+                          onClick={() => setCurrentPage(1)}
+                          className="w-10 h-10 rounded-lg font-semibold transition-colors border border-gray-300 hover:bg-gray-50"
+                        >
+                          1
+                        </button>
+                      );
+                      if (startPage > 2) {
+                        pages.push(<span key="ellipsis1" className="px-2 text-gray-500">...</span>);
+                      }
+                    }
+                    
+                    // Visible pages
+                    for (let i = startPage; i <= endPage; i++) {
+                      pages.push(
+                        <button
+                          key={i}
+                          onClick={() => setCurrentPage(i)}
+                          className={`w-10 h-10 rounded-lg font-semibold transition-colors ${
+                            i === currentPage
+                              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+                              : 'border border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {i}
+                        </button>
+                      );
+                    }
+                    
+                    // Last page + ellipsis
+                    if (endPage < totalPages) {
+                      if (endPage < totalPages - 1) {
+                        pages.push(<span key="ellipsis2" className="px-2 text-gray-500">...</span>);
+                      }
+                      pages.push(
+                        <button
+                          key={totalPages}
+                          onClick={() => setCurrentPage(totalPages)}
+                          className="w-10 h-10 rounded-lg font-semibold transition-colors border border-gray-300 hover:bg-gray-50"
+                        >
+                          {totalPages}
+                        </button>
+                      );
+                    }
+                    
+                    return pages;
+                  })()}
+                  
+                  <button 
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    className="px-4 py-2 rounded-lg border border-gray-300 
+                             hover:bg-gray-50 transition-colors disabled:opacity-50"
+                    disabled={currentPage === totalPages}
+                  >
+                    Sau
+                  </button>
+                </div>
+                
+                {/* Page Info */}
+                <div className="ml-6 text-sm text-gray-600">
+                  Trang {currentPage} / {totalPages} ({totalProducts} sản phẩm)
+                </div>
               </div>
-            </div>
+            )}
           </main>
         </div>
       </div>
