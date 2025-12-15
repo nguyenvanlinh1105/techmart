@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { FaEye, FaCheck, FaTruck, FaTimes, FaFilter, FaSearch } from 'react-icons/fa'
+import { FaEye, FaCheck, FaTruck, FaTimes, FaSearch, FaFileExcel, FaDownload } from 'react-icons/fa'
 import { toast } from 'react-hot-toast'
+import * as XLSX from 'xlsx'
 import api from '../../services/api'
 
 const AdminOrders = () => {
@@ -13,6 +14,8 @@ const AdminOrders = () => {
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [showModal, setShowModal] = useState(false)
   const [highlightedOrderId, setHighlightedOrderId] = useState(null)
+
+
 
   // Check for highlight parameter from notification click
   useEffect(() => {
@@ -124,6 +127,106 @@ const AdminOrders = () => {
     order.shipping_address?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
+  // Export to Excel
+  const exportToExcel = () => {
+    try {
+      console.log('📊 Starting Excel export...')
+      console.log('📋 Filtered orders:', filteredOrders.length)
+      
+      if (filteredOrders.length === 0) {
+        toast.error('Không có dữ liệu để xuất Excel')
+        return
+      }
+
+      // Prepare main data
+      const exportData = filteredOrders.map(order => ({
+        'Mã Đơn Hàng': order.order_number,
+        'Khách Hàng': order.shipping_address?.full_name || 'N/A',
+        'Email': order.user_email || 'N/A',
+        'Số Điện Thoại': order.shipping_address?.phone || 'N/A',
+        'Địa Chỉ': `${order.shipping_address?.address || ''}, ${order.shipping_address?.district || ''}, ${order.shipping_address?.city || ''}`,
+        'Tổng Tiền (VND)': order.total_amount || order.total,
+        'Trạng Thái': statusConfig[order.status]?.label || order.status,
+        'Phương Thức Thanh Toán': order.payment_method === 'cod' ? 'COD' : 'VNPay',
+        'Ngày Đặt': new Date(order.created_at).toLocaleDateString('vi-VN'),
+        'Thời Gian Đặt': new Date(order.created_at).toLocaleTimeString('vi-VN'),
+        'Ghi Chú': order.note || ''
+      }))
+
+      // Create workbook
+      const wb = XLSX.utils.book_new()
+      
+      // Main orders sheet
+      const ws = XLSX.utils.json_to_sheet(exportData)
+      
+      // Set column widths
+      const colWidths = [
+        { wch: 15 }, // Mã Đơn Hàng
+        { wch: 20 }, // Khách Hàng
+        { wch: 25 }, // Email
+        { wch: 15 }, // Số Điện Thoại
+        { wch: 45 }, // Địa Chỉ
+        { wch: 18 }, // Tổng Tiền
+        { wch: 15 }, // Trạng Thái
+        { wch: 20 }, // Phương Thức Thanh Toán
+        { wch: 12 }, // Ngày Đặt
+        { wch: 12 }, // Thời Gian Đặt
+        { wch: 25 }  // Ghi Chú
+      ]
+      ws['!cols'] = colWidths
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Danh Sách Đơn Hàng')
+
+      // Create summary sheet
+      const totalAmount = filteredOrders.reduce((sum, order) => sum + (order.total_amount || order.total), 0)
+      const stats = {
+        'pending': filteredOrders.filter(o => o.status === 'pending').length,
+        'confirmed': filteredOrders.filter(o => o.status === 'confirmed').length,
+        'processing': filteredOrders.filter(o => o.status === 'processing').length,
+        'shipping': filteredOrders.filter(o => o.status === 'shipping').length,
+        'delivered': filteredOrders.filter(o => o.status === 'delivered').length,
+        'cancelled': filteredOrders.filter(o => o.status === 'cancelled').length,
+      }
+
+      const summaryData = [
+        { 'Thông Tin': 'Ngày Xuất Báo Cáo', 'Giá Trị': new Date().toLocaleString('vi-VN') },
+        { 'Thông Tin': 'Tổng Số Đơn Hàng', 'Giá Trị': filteredOrders.length },
+        { 'Thông Tin': 'Tổng Giá Trị (VND)', 'Giá Trị': totalAmount.toLocaleString('vi-VN') },
+        { 'Thông Tin': '', 'Giá Trị': '' }, // Empty row
+        { 'Thông Tin': 'THỐNG KÊ THEO TRẠNG THÁI', 'Giá Trị': '' },
+        { 'Thông Tin': 'Chờ Xác Nhận', 'Giá Trị': stats.pending },
+        { 'Thông Tin': 'Đã Xác Nhận', 'Giá Trị': stats.confirmed },
+        { 'Thông Tin': 'Đang Xử Lý', 'Giá Trị': stats.processing },
+        { 'Thông Tin': 'Đang Giao', 'Giá Trị': stats.shipping },
+        { 'Thông Tin': 'Đã Giao', 'Giá Trị': stats.delivered },
+        { 'Thông Tin': 'Đã Hủy', 'Giá Trị': stats.cancelled },
+      ]
+
+      if (statusFilter) {
+        summaryData.splice(4, 0, { 'Thông Tin': 'Bộ Lọc Trạng Thái', 'Giá Trị': statusConfig[statusFilter]?.label })
+      }
+      if (searchTerm) {
+        summaryData.splice(statusFilter ? 5 : 4, 0, { 'Thông Tin': 'Từ Khóa Tìm Kiếm', 'Giá Trị': searchTerm })
+      }
+
+      const summaryWs = XLSX.utils.json_to_sheet(summaryData)
+      summaryWs['!cols'] = [{ wch: 25 }, { wch: 30 }]
+      XLSX.utils.book_append_sheet(wb, summaryWs, 'Thống Kê Tổng Hợp')
+      
+      const fileName = `don-hang-${new Date().toISOString().split('T')[0]}.xlsx`
+      console.log('💾 Saving Excel file as:', fileName)
+      XLSX.writeFile(wb, fileName)
+      
+      console.log('✅ Excel export completed successfully')
+      toast.success(`Xuất Excel thành công! (${filteredOrders.length} đơn hàng)`)
+    } catch (error) {
+      console.error('❌ Error exporting to Excel:', error)
+      toast.error(`Lỗi khi xuất Excel: ${error.message}`)
+    }
+  }
+
+
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -133,10 +236,21 @@ const AdminOrders = () => {
             <h1 className="text-3xl font-black text-gray-800">Quản Lý Đơn Hàng</h1>
             <p className="text-gray-600 mt-1">Tổng số: <span className="font-bold text-purple-600">{orders.length}</span> đơn hàng</p>
           </div>
+          
+          {/* Export Button */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={exportToExcel}
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-xl transition-all duration-300 hover:scale-105 shadow-lg"
+            >
+              <FaFileExcel className="w-5 h-5" />
+              Xuất Excel
+            </button>
+          </div>
         </div>
 
         {/* Filters */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="relative">
             <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
@@ -164,6 +278,18 @@ const AdminOrders = () => {
             <option value="delivered">Đã Giao</option>
             <option value="cancelled">Đã Hủy</option>
           </select>
+
+          {/* Export Summary */}
+          <div className="flex items-center justify-end">
+            <div className="text-sm text-gray-600 bg-gray-50 px-4 py-3 rounded-xl">
+              <span className="font-semibold">Hiển thị:</span> {filteredOrders.length} đơn hàng
+              {statusFilter && (
+                <span className="ml-2 px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">
+                  {statusConfig[statusFilter]?.label}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -239,6 +365,8 @@ const AdminOrders = () => {
                           >
                             <FaEye />
                           </button>
+
+
                           
                           {config.action && order.status !== 'cancelled' && order.status !== 'delivered' && (
                             <button

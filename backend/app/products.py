@@ -307,19 +307,31 @@ async def count_products(
 ):
     """Đếm tổng số sản phẩm (cho pagination)"""
     
-    # Only count approved products
-    query = {"approval_status": ProductApprovalStatus.APPROVED}
+    # Count approved products OR legacy products (without approval_status)
+    query = {
+        "$or": [
+            {"approval_status": ProductApprovalStatus.APPROVED.value},
+            {"approval_status": {"$exists": False}},  # Legacy products
+            {"approval_status": None}  # Also handle None values
+        ]
+    }
     
     if category_id:
         query["category_id"] = category_id
     
     if search:
         # Use regex for case-insensitive search
-        query["$or"] = [
-            {"name": {"$regex": search, "$options": "i"}},
-            {"description": {"$regex": search, "$options": "i"}},
-            {"tags": {"$in": [search.lower()]}}
-        ]
+        # Combine with existing query using $and
+        search_query = {
+            "$or": [
+                {"name": {"$regex": search, "$options": "i"}},
+                {"description": {"$regex": search, "$options": "i"}},
+                {"tags": {"$in": [search.lower()]}}
+            ]
+        }
+        # Merge search with existing query
+        original_query = query.copy()
+        query = {"$and": [original_query, search_query]}
     
     if min_price is not None or max_price is not None:
         query["price"] = {}

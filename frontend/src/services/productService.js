@@ -80,5 +80,11 @@ export const productService = {
     const response = await api.get(`/products/${productId}/reviews`, { params: { page, limit } })
     return response.data
   },
+
+  // Get products count for pagination
+  getProductsCount: async (params = {}) => {
+    const response = await api.get('/products/count', { params })
+    return response.data
+  },
 }
 
