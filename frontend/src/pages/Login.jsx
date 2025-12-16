@@ -27,6 +27,19 @@ const Login = () => {
 
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    const savedLogin = localStorage.getItem("saved_login");
+
+    if (savedLogin) {
+      const parsed = JSON.parse(savedLogin);
+      setFormData({
+        email: parsed.email,
+        password: parsed.password,
+        remember: true,
+      });
+    }
+  }, []);
+
   // Redirect if already logged in
   useEffect(() => {
     if (authLoading) return; // Wait for auth to load
@@ -52,6 +65,18 @@ const Login = () => {
       toast.success("Đăng nhập thành công!");
       console.log("✅ Đăng nhập thành công:", response.user);
 
+      if (formData.remember) {
+        localStorage.setItem(
+          "saved_login",
+          JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+          })
+        );
+      } else {
+        localStorage.removeItem("saved_login");
+      }
+
       // Navigate to home
       navigate("/");
     } catch (error) {
@@ -68,7 +93,11 @@ const Login = () => {
   };
 
   const handleSocialLogin = (provider) => {
-    console.log(`Login with ${provider}`);
+    if (provider === "Google") {
+      window.location.href = "http://localhost:8000/api/auth/google";
+    } else {
+      console.log(`Login with ${provider}`);
+    }
   };
 
   return (

@@ -28,7 +28,7 @@ const SellerRegister = () => {
     if (authLoading) return;
     if (user) {
       navigate('/', { replace: true });
-      toast.info('Bạn đã đăng nhập rồi!');
+      // toast.info('Bạn đã đăng nhập rồi!');
     }
   }, [user, authLoading, navigate]);
 

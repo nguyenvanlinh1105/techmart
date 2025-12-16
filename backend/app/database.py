@@ -1,7 +1,7 @@
 from pymongo import MongoClient, ASCENDING, DESCENDING
 import os
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
 
 load_dotenv()
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
@@ -146,7 +146,8 @@ def create_notification_safe(user_id: str, type: str, title: str, message: str, 
                 else:
                     print(f"[WARNING] Could not create unique notification ID after {max_retries} attempts")
                     return False
-            
+            vn_now = datetime.utcnow() + timedelta(hours=7)
+
             notification_data = {
                 "_id": notif_id,
                 "user_id": user_id,
@@ -154,7 +155,7 @@ def create_notification_safe(user_id: str, type: str, title: str, message: str, 
                 "title": title,
                 "message": message,
                 "is_read": False,
-                "created_at": datetime.utcnow()
+                "created_at": vn_now
             }
             if link:
                 notification_data["link"] = link
