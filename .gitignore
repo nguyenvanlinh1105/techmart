@@ -41,7 +41,7 @@
 __pycache__/
 *.pyc
 *.pyo
-
+backend/app/__pycache__/*
 
 # ----------------------------------------------------------------------
 # 🌐 FRONTEND (Node.js/React/Vite)
