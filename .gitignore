@@ -38,7 +38,9 @@
 .installed.cfg
 
 # Cache Pytest
-.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
 
 
 # ----------------------------------------------------------------------
