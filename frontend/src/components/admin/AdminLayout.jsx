@@ -66,21 +66,9 @@ const AdminLayout = () => {
           </Link>
         </div>
 
-        {/* User Info */}
-        <div className="px-6 py-4 bg-purple-950/30 border-b border-purple-700">
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
-              {user?.full_name?.charAt(0) || 'A'}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-sm truncate">{user?.full_name}</p>
-              <p className="text-xs text-purple-300 truncate">{user?.email}</p>
-            </div>
-          </div>
-        </div>
 
         {/* Navigation */}
-        <nav className="px-3 py-6 space-y-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+        <nav className="px-3 py-6 space-y-2" style={{ maxHeight: 'calc(100vh - 280px)' }}>
           {menuItems.map((item) => (
             <Link
               key={item.path}

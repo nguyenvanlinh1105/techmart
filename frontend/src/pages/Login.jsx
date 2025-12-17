@@ -45,9 +45,16 @@ const Login = () => {
     if (authLoading) return; // Wait for auth to load
 
     if (user) {
-      // If user is already logged in, redirect
-      const from = location.state?.from || "/";
-      navigate(from, { replace: true });
+      // If user is already logged in, redirect based on role
+      let redirectPath;
+      if (user.role === "admin") {
+        redirectPath = "/admin";
+      } else {
+        redirectPath = location.state?.from || "/";
+      }
+
+      console.log("🔄 Already logged in, redirecting to:", redirectPath);
+      navigate(redirectPath, { replace: true });
     }
   }, [user, authLoading, navigate, location]);
 
@@ -77,8 +84,17 @@ const Login = () => {
         localStorage.removeItem("saved_login");
       }
 
-      // Navigate to home
-      navigate("/");
+      // Navigate based on user role - Admin always goes to /admin
+      let redirectPath;
+      if (response.user.role === "admin") {
+        redirectPath = "/admin";
+      } else {
+        redirectPath = location.state?.from || "/";
+      }
+
+      console.log("🔄 User role:", response.user.role);
+      console.log("🔄 Redirecting to:", redirectPath);
+      navigate(redirectPath, { replace: true });
     } catch (error) {
       console.error("❌ Login error:", error);
 
