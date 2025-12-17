@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FaPlus, FaEdit, FaTrash, FaSearch, FaFilter, FaEye, FaImage } from 'react-icons/fa'
+import { FaPlus, FaEdit, FaTrash, FaSearch, FaEye, FaImage } from 'react-icons/fa'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { productService } from '../../services/productService'
@@ -12,6 +12,10 @@ const AdminProducts = () => {
   const [selectedCategory, setSelectedCategory] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState('')
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [imageUploadMethod, setImageUploadMethod] = useState('url') // 'url' or 'upload'
   
   const [formData, setFormData] = useState({
     name: '',
@@ -35,11 +39,12 @@ const AdminProducts = () => {
   const fetchProducts = async () => {
     try {
       setLoading(true)
-      const filters = {}
-      if (selectedCategory) filters.category_id = selectedCategory
+      const params = {}
+      if (selectedCategory) params.category_id = selectedCategory
       
-      const data = await productService.getProducts(filters)
-      setProducts(data)
+      // Gọi endpoint admin để lấy tất cả sản phẩm (bao gồm pending)
+      const response = await api.get('/admin/products', { params })
+      setProducts(response.data)
     } catch (error) {
       console.error('Error fetching products:', error)
       toast.error('Không thể tải sản phẩm')
@@ -50,10 +55,13 @@ const AdminProducts = () => {
 
   const fetchCategories = async () => {
     try {
+      console.log('🔍 Fetching categories...')
       const data = await productService.getCategories()
+      console.log('📦 Categories received:', data)
       setCategories(data)
     } catch (error) {
-      console.error('Error fetching categories:', error)
+      console.error('❌ Error fetching categories:', error)
+      toast.error('Không thể tải danh mục')
     }
   }
 
@@ -73,6 +81,7 @@ const AdminProducts = () => {
         is_featured: product.is_featured || false,
         is_on_sale: product.is_on_sale || false
       })
+      setImagePreview(product.images?.[0]?.url || '')
     } else {
       setEditingProduct(null)
       setFormData({
@@ -88,29 +97,148 @@ const AdminProducts = () => {
         is_featured: false,
         is_on_sale: false
       })
+      setImagePreview('')
     }
+    
+    // Reset image upload states
+    setSelectedFile(null)
+    setUploadingImage(false)
+    setImageUploadMethod('url')
     setShowModal(true)
+  }
+
+  const handleImageUpload = async (file) => {
+    if (!file) return null
+    
+    setUploadingImage(true)
+    
+    try {
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', file)
+      
+      const response = await api.post('/admin/upload/image', uploadFormData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+      
+      return response.data.url
+    } catch (error) {
+      console.error('Error uploading image:', error)
+      toast.error('Lỗi khi tải ảnh lên: ' + (error.response?.data?.detail || error.message))
+      return null
+    } finally {
+      setUploadingImage(false)
+    }
+  }
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error('Vui lòng chọn file ảnh')
+        return
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Kích thước ảnh không được vượt quá 5MB')
+        return
+      }
+      
+      setSelectedFile(file)
+      
+      // Create preview
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setImagePreview(e.target.result)
+      }
+      reader.readAsDataURL(file)
+    }
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     
     try {
+      console.log('📤 Starting product submission...')
+      console.log('📤 Form data:', formData)
+      console.log('📤 Image method:', imageUploadMethod)
+      console.log('📤 Selected file:', selectedFile)
+      
+      let finalFormData = { ...formData }
+      
+      // Validate required fields
+      if (!finalFormData.name || !finalFormData.brand || !finalFormData.category_id) {
+        toast.error('Vui lòng điền đầy đủ thông tin bắt buộc')
+        return
+      }
+      
+      // Handle image upload if file is selected
+      if (imageUploadMethod === 'upload' && selectedFile) {
+        console.log('📤 Uploading image...')
+        const uploadedImageUrl = await handleImageUpload(selectedFile)
+        if (uploadedImageUrl) {
+          finalFormData.images = [{ 
+            url: uploadedImageUrl, 
+            is_primary: true, 
+            alt_text: finalFormData.name 
+          }]
+          console.log('📤 Image uploaded successfully:', uploadedImageUrl)
+        } else {
+          toast.error('Không thể tải ảnh lên. Vui lòng thử lại.')
+          return
+        }
+      }
+      
+      // Ensure images array is not empty
+      if (!finalFormData.images || !finalFormData.images[0]?.url) {
+        finalFormData.images = [{ 
+          url: 'https://via.placeholder.com/400x400?text=No+Image', 
+          is_primary: true, 
+          alt_text: finalFormData.name 
+        }]
+      }
+      
       if (editingProduct) {
         // Update product
-        await api.put(`/admin/products/${editingProduct.id || editingProduct._id}`, formData)
+        console.log('📤 Updating product...')
+        await api.put(`/admin/products/${editingProduct.id || editingProduct._id}`, finalFormData)
         toast.success('Cập nhật sản phẩm thành công!')
       } else {
-        // Create product
-        await api.post('/admin/products', formData)
+        // Create product - tạo slug unique
+        const baseSlug = finalFormData.slug || finalFormData.name.toLowerCase()
+          .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g, 'a')
+          .replace(/[èéẹẻẽêềếệểễ]/g, 'e')
+          .replace(/[ìíịỉĩ]/g, 'i')
+          .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g, 'o')
+          .replace(/[ùúụủũưừứựửữ]/g, 'u')
+          .replace(/[ỳýỵỷỹ]/g, 'y')
+          .replace(/đ/g, 'd')
+          .replace(/[^a-z0-9\s]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '')
+        
+        const uniqueSlug = `${baseSlug}-${Date.now()}`
+        
+        const productData = {
+          ...finalFormData,
+          slug: uniqueSlug
+        }
+        console.log('📤 Creating new product...')
+        console.log('📤 Final product data:', productData)
+        await api.post('/admin/products', productData)
         toast.success('Thêm sản phẩm thành công!')
       }
       
       setShowModal(false)
-      fetchProducts()
+      await fetchProducts() // Refresh danh sách sản phẩm
     } catch (error) {
-      console.error('Error saving product:', error)
-      toast.error(error.response?.data?.detail || 'Lỗi khi lưu sản phẩm')
+      console.error('❌ Error saving product:', error)
+      console.error('❌ Error response:', error.response?.data)
+      toast.error(error.response?.data?.detail || error.response?.data?.message || 'Lỗi khi lưu sản phẩm')
     }
   }
 
@@ -120,7 +248,7 @@ const AdminProducts = () => {
     try {
       await api.delete(`/admin/products/${productId}`)
       toast.success('Xóa sản phẩm thành công!')
-      fetchProducts()
+      await fetchProducts()
     } catch (error) {
       console.error('Error deleting product:', error)
       toast.error('Không thể xóa sản phẩm')
@@ -223,7 +351,7 @@ const AdminProducts = () => {
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm text-gray-600">
-                        {categories.find(c => c._id === product.category_id)?.name || 'N/A'}
+                        {categories.find(c => (c.id || c._id) === product.category_id)?.name || 'N/A'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -339,7 +467,7 @@ const AdminProducts = () => {
                   >
                     <option value="">Chọn danh mục</option>
                     {categories.map(cat => (
-                      <option key={cat._id} value={cat._id}>{cat.name}</option>
+                      <option key={cat.id || cat._id} value={cat.id || cat._id}>{cat.name}</option>
                     ))}
                   </select>
                 </div>
@@ -392,19 +520,104 @@ const AdminProducts = () => {
                 />
               </div>
 
-              {/* Image URL */}
+              {/* Image Upload/URL */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">URL Hình Ảnh</label>
-                <input
-                  type="url"
-                  value={formData.images[0]?.url || ''}
-                  onChange={(e) => setFormData({ 
-                    ...formData, 
-                    images: [{ url: e.target.value, is_primary: true, alt_text: formData.name }] 
-                  })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none"
-                  placeholder="https://..."
-                />
+                <label className="block text-sm font-bold text-gray-700 mb-2">Hình Ảnh Sản Phẩm</label>
+                
+                {/* Method Selection */}
+                <div className="flex space-x-4 mb-4">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      name="imageMethod"
+                      value="url"
+                      checked={imageUploadMethod === 'url'}
+                      onChange={(e) => setImageUploadMethod(e.target.value)}
+                      className="w-4 h-4 text-purple-600"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Nhập URL</span>
+                  </label>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      name="imageMethod"
+                      value="upload"
+                      checked={imageUploadMethod === 'upload'}
+                      onChange={(e) => setImageUploadMethod(e.target.value)}
+                      className="w-4 h-4 text-purple-600"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Tải ảnh lên</span>
+                  </label>
+                </div>
+
+                {/* URL Input */}
+                {imageUploadMethod === 'url' && (
+                  <input
+                    type="url"
+                    value={formData.images[0]?.url || ''}
+                    onChange={(e) => {
+                      setFormData({ 
+                        ...formData, 
+                        images: [{ url: e.target.value, is_primary: true, alt_text: formData.name }] 
+                      })
+                      setImagePreview(e.target.value)
+                    }}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none"
+                    placeholder="https://example.com/image.jpg"
+                  />
+                )}
+
+                {/* File Upload */}
+                {imageUploadMethod === 'upload' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-center w-full">
+                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100">
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          <FaImage className="w-8 h-8 mb-4 text-gray-500" />
+                          <p className="mb-2 text-sm text-gray-500">
+                            <span className="font-semibold">Nhấp để chọn ảnh</span> hoặc kéo thả
+                          </p>
+                          <p className="text-xs text-gray-500">PNG, JPG, GIF (MAX. 5MB)</p>
+                        </div>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={handleFileSelect}
+                        />
+                      </label>
+                    </div>
+                    
+                    {selectedFile && (
+                      <div className="text-sm text-gray-600">
+                        <span className="font-medium">File đã chọn:</span> {selectedFile.name}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Image Preview */}
+                {imagePreview && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Xem trước:</p>
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="w-32 h-32 object-cover rounded-lg border-2 border-gray-200"
+                      onError={(e) => {
+                        e.target.src = '/placeholder.png'
+                        setImagePreview('')
+                      }}
+                    />
+                  </div>
+                )}
+
+                {uploadingImage && (
+                  <div className="mt-2 flex items-center space-x-2 text-sm text-purple-600">
+                    <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span>Đang tải ảnh lên...</span>
+                  </div>
+                )}
               </div>
 
               {/* Flags */}

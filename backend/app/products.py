@@ -421,87 +421,8 @@ async def get_product(product_id: str):
         seller_name=seller_name
     )
 
-# ==================== ADMIN PRODUCT ROUTES (F31) ====================
-
-@router.post("/admin/products", response_model=ProductResponse)
-async def create_product(
-    product: ProductCreate,
-    current_user: dict = Depends(get_current_admin)
-):
-    """Tạo sản phẩm mới (Admin only)"""
-    
-    # Check if slug exists
-    if products_collection.find_one({"slug": product.slug}):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Product slug already exists"
-        )
-    
-    # Check if category exists
-    if not categories_collection.find_one({"_id": product.category_id}):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Category not found"
-        )
-    
-    product_dict = product.dict()
-    product_dict["_id"] = f"prod_{get_next_sequence('products')}"
-    product_dict["created_at"] = datetime.utcnow()
-    product_dict["updated_at"] = datetime.utcnow()
-    product_dict["rating"] = 0.0
-    product_dict["review_count"] = 0
-    product_dict["sold_count"] = 0
-    product_dict["view_count"] = 0
-    
-    products_collection.insert_one(product_dict)
-    log_activity(current_user["_id"], "PRODUCT_CREATED", {"product_id": product_dict["_id"]})
-    
-    return await get_product(product_dict["_id"])
-
-@router.put("/admin/products/{product_id}", response_model=ProductResponse)
-async def update_product(
-    product_id: str,
-    product_update: ProductUpdate,
-    current_user: dict = Depends(get_current_admin)
-):
-    """Cập nhật sản phẩm (Admin only)"""
-    
-    if not products_collection.find_one({"_id": product_id}):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Product not found"
-        )
-    
-    update_data = {k: v for k, v in product_update.dict().items() if v is not None}
-    update_data["updated_at"] = datetime.utcnow()
-    
-    products_collection.update_one(
-        {"_id": product_id},
-        {"$set": update_data}
-    )
-    
-    log_activity(current_user["_id"], "PRODUCT_UPDATED", {"product_id": product_id})
-    
-    return await get_product(product_id)
-
-@router.delete("/admin/products/{product_id}")
-async def delete_product(
-    product_id: str,
-    current_user: dict = Depends(get_current_admin)
-):
-    """Xóa sản phẩm (Admin only)"""
-    
-    result = products_collection.delete_one({"_id": product_id})
-    
-    if result.deleted_count == 0:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Product not found"
-        )
-    
-    log_activity(current_user["_id"], "PRODUCT_DELETED", {"product_id": product_id})
-    
-    return {"message": "Product deleted successfully"}
+# ==================== ADMIN PRODUCT ROUTES MOVED TO admin.py ====================
+# Admin product management endpoints are now in app/admin.py to avoid routing conflicts
 
 
 

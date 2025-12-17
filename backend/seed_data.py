@@ -486,6 +486,126 @@ def create_products(categories):
         }
         products.append(product)
     
+    # =========================
+    # SEED THEM 5 SAN PHAM CHO MOI DANH MUC
+    # =========================
+    
+    # Danh sách ảnh từ Unsplash
+    category_images = {
+        "Điện Thoại": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80",
+        "Laptop": "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80",
+        "Tai Nghe": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80",
+        "Đồng Hồ Thông Minh": "https://images.unsplash.com/photo-1516574187841-cb9cc2ca948b?w=800&q=80",
+        "Phụ Kiện Điện Tử": "https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=800&q=80",
+        "Thời Trang Nam": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&q=80",
+        "Thời Trang Nữ": "https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=800&q=80",
+        "Giày Dép": "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=800&q=80",
+        "Túi Xách": "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=800&q=80",
+        "Nội Thất": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&q=80",
+        "Đồ Gia Dụng": "https://images.unsplash.com/photo-1556911220-bff31c812dba?w=800&q=80",
+        "Đèn Chiếu Sáng": "https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?w=800&q=80",
+        "Thể Thao & Giải Trí": "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&q=80",
+        "Dụng Cụ Thể Thao": "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=800&q=80",
+        "Sách": "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=800&q=80",
+        "Mỹ Phẩm": "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=800&q=80",
+        "Chăm Sóc Da": "https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=800&q=80",
+        "Đồ Chơi": "https://images.unsplash.com/photo-1558060370-d644479cb6f7?w=800&q=80",
+        "Thực Phẩm": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=80",
+        "Đồ Uống": "https://images.unsplash.com/photo-1544145945-f90425340c7e?w=800&q=80"
+    }
+    
+    # Brands cho từng danh mục
+    category_brands = {
+        "Điện Thoại": ["Apple", "Samsung", "Xiaomi", "OPPO", "Vivo"],
+        "Laptop": ["Apple", "Dell", "Asus", "HP", "Lenovo"],
+        "Tai Nghe": ["Apple", "Sony", "JBL", "Bose", "Sennheiser"],
+        "Đồng Hồ Thông Minh": ["Apple", "Samsung", "Xiaomi", "Garmin", "Huawei"],
+        "Phụ Kiện Điện Tử": ["Anker", "Belkin", "Ugreen", "Baseus", "Xiaomi"],
+        "Thời Trang Nam": ["Uniqlo", "Zara", "H&M", "Nike", "Adidas"],
+        "Thời Trang Nữ": ["Zara", "H&M", "Mango", "Uniqlo", "Forever 21"],
+        "Giày Dép": ["Nike", "Adidas", "Converse", "Vans", "Puma"],
+        "Túi Xách": ["Gucci", "LV", "Chanel", "Dior", "Hermes"],
+        "Nội Thất": ["IKEA", "JYSK", "Nitori", "Muji", "Homepro"],
+        "Đồ Gia Dụng": ["Lock&Lock", "Tupperware", "Sunhouse", "Philips", "Panasonic"],
+        "Đèn Chiếu Sáng": ["Philips", "Panasonic", "Điện Quang", "Rạng Đông", "Xiaomi"],
+        "Thể Thao & Giải Trí": ["Nike", "Adidas", "Puma", "Under Armour", "Reebok"],
+        "Dụng Cụ Thể Thao": ["Adidas", "Nike", "Reebok", "Decathlon", "Gymshark"],
+        "Sách": ["NXB Trẻ", "NXB Kim Đồng", "NXB Văn Học", "NXB Thế Giới", "NXB Lao Động"],
+        "Mỹ Phẩm": ["Dior", "Chanel", "MAC", "Maybelline", "L'Oreal"],
+        "Chăm Sóc Da": ["Cetaphil", "La Roche-Posay", "Neutrogena", "Innisfree", "The Face Shop"],
+        "Đồ Chơi": ["Lego", "Hasbro", "Mattel", "Bandai", "Fisher-Price"],
+        "Thực Phẩm": ["Vinamilk", "TH True Milk", "Masan", "Acecook", "Nestlé"],
+        "Đồ Uống": ["Coca-Cola", "Pepsi", "Trà Xanh 0°", "Sting", "Red Bull"]
+    }
+    
+    # Giá cơ bản cho từng danh mục
+    category_base_prices = {
+        "Điện Thoại": 8000000,
+        "Laptop": 15000000,
+        "Tai Nghe": 2000000,
+        "Đồng Hồ Thông Minh": 3000000,
+        "Phụ Kiện Điện Tử": 200000,
+        "Thời Trang Nam": 300000,
+        "Thời Trang Nữ": 400000,
+        "Giày Dép": 1500000,
+        "Túi Xách": 2000000,
+        "Nội Thất": 5000000,
+        "Đồ Gia Dụng": 500000,
+        "Đèn Chiếu Sáng": 300000,
+        "Thể Thao & Giải Trí": 500000,
+        "Dụng Cụ Thể Thao": 800000,
+        "Sách": 100000,
+        "Mỹ Phẩm": 500000,
+        "Chăm Sóc Da": 300000,
+        "Đồ Chơi": 200000,
+        "Thực Phẩm": 50000,
+        "Đồ Uống": 20000
+    }
+    
+    # Tạo 5 sản phẩm cho mỗi danh mục
+    for category in categories:
+        cat_name = category["name"]
+        cat_id = category["_id"]
+        
+        # Lấy thông tin cho danh mục
+        image_url = category_images.get(cat_name, "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80")
+        brands = category_brands.get(cat_name, ["Generic"])
+        base_price = category_base_prices.get(cat_name, 500000)
+        
+        # Tạo 5 sản phẩm
+        for i in range(1, 6):
+            brand = random.choice(brands)
+            price = base_price + random.randint(-base_price//3, base_price*2)
+            compare_price = price + random.randint(price//10, price//3)
+            
+            product = {
+                "_id": f"prod_{get_next_sequence('products')}",
+                "name": f"{cat_name} {brand} #{i}",
+                "slug": f"{cat_name.lower().replace(' ', '-')}-{brand.lower()}-{i}",
+                "description": f"{cat_name} {brand} chất lượng cao, mẫu số {i}. Sản phẩm chính hãng, bảo hành đầy đủ.",
+                "short_description": f"{cat_name} {brand} - Mẫu {i}",
+                "category_id": cat_id,
+                "brand": brand,
+                "price": price,
+                "compare_price": compare_price,
+                "stock": random.randint(30, 150),
+                "sku": f"{cat_name[:3].upper()}-{random.randint(10000, 99999)}",
+                "images": [
+                    {"url": image_url, "is_primary": True, "alt_text": f"{cat_name} {brand}"}
+                ],
+                "variants": [],
+                "tags": [cat_name.lower(), brand.lower(), "auto-seed"],
+                "is_featured": i == 1,  # Sản phẩm đầu tiên là featured
+                "is_on_sale": i % 2 == 0,  # Sản phẩm chẵn có sale
+                "rating": round(random.uniform(4.0, 5.0), 1),
+                "review_count": random.randint(5, 200),
+                "sold_count": random.randint(10, 1000),
+                "view_count": random.randint(100, 10000),
+                "created_at": datetime.utcnow() - timedelta(days=random.randint(1, 60)),
+                "updated_at": datetime.utcnow()
+            }
+            products.append(product)
+    
     products_collection.insert_many(products)
     print(f"[OK] Da tao {len(products)} san pham!")
     return products
