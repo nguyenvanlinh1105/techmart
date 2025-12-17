@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from typing import List, Optional
 from datetime import datetime, timedelta
 from bson import ObjectId
+import os
 
 from .database import messages_collection, conversations_collection, get_next_sequence
 from .auth import get_current_user, get_current_admin
@@ -123,47 +124,65 @@ async def send_message(
     # Handle image upload
     image_url = None
     if image:
-        # Save image (simplified - in production use cloud storage)
-        import os
-        upload_dir = "uploads/chat"
-        os.makedirs(upload_dir, exist_ok=True)
-        
-        filename = f"{datetime.utcnow().timestamp()}_{image.filename}"
-        file_path = f"{upload_dir}/{filename}"
-        with open(file_path, "wb") as f:
-            f.write(await image.read())
-        
-        # Return URL that can be accessed via static files
-        image_url = f"http://localhost:8000/uploads/chat/{filename}"
+        try:
+            # Save image (simplified - in production use cloud storage)
+            upload_dir = "uploads/chat"
+            os.makedirs(upload_dir, exist_ok=True)
+            
+            # Sanitize filename
+            safe_filename = "".join(c for c in image.filename if c.isalnum() or c in "._-")
+            filename = f"{int(datetime.utcnow().timestamp())}_{safe_filename}"
+            file_path = os.path.join(upload_dir, filename)
+            
+            with open(file_path, "wb") as f:
+                content = await image.read()
+                f.write(content)
+            
+            # Return URL that can be accessed via static files
+            image_url = f"http://localhost:8000/uploads/chat/{filename}"
+        except Exception as e:
+            print(f"[ERROR] Image upload failed: {e}")
+            # Continue without image
     
     # Create message
-    vn_now = datetime.utcnow() + timedelta(hours=7)
-    message = {
-        "_id": f"msg_{get_next_sequence('messages')}",
-        "conversation_id": conversation_id,
-        "sender_id": current_user["_id"],
-        "sender_name": current_user.get("full_name") or current_user.get("name") or current_user["email"],
-        "sender_role": "user",
-        "content": content,
-        "message_type": message_type,
-        "image_url": image_url,
-        "is_read": False,
-        "created_at": vn_now
-    }
-    
-    messages_collection.insert_one(message)
+    try:
+        vn_now = datetime.utcnow() + timedelta(hours=7)
+        message = {
+            "_id": f"msg_{get_next_sequence('messages')}",
+            "conversation_id": conversation_id,
+            "sender_id": current_user["_id"],
+            "sender_name": current_user.get("full_name") or current_user.get("name") or current_user["email"],
+            "sender_role": "user",
+            "content": str(content),  # Ensure string
+            "message_type": str(message_type),  # Ensure string
+            "image_url": image_url,
+            "is_read": False,
+            "created_at": vn_now
+        }
+        
+        result = messages_collection.insert_one(message)
+        if not result.inserted_id:
+            raise HTTPException(status_code=500, detail="Failed to save message")
+            
+    except Exception as e:
+        print(f"[ERROR] Message creation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Message creation failed: {str(e)}")
     
     # Update conversation
-    conversations_collection.update_one(
-        {"_id": conversation_id},
-        {
-            "$set": {
-                "last_message": content[:100],
-                "last_message_at": datetime.utcnow()
-            },
-            "$inc": {"unread_count_admin": 1}
-        }
-    )
+    try:
+        conversations_collection.update_one(
+            {"_id": conversation_id},
+            {
+                "$set": {
+                    "last_message": str(content)[:100],
+                    "last_message_at": datetime.utcnow()
+                },
+                "$inc": {"unread_count_admin": 1}
+            }
+        )
+    except Exception as e:
+        print(f"[WARNING] Failed to update conversation: {e}")
+        # Don't fail the request for this
     
     message["id"] = message["_id"]
     return message
@@ -241,47 +260,65 @@ async def admin_send_message(
     # Handle image
     image_url = None
     if image:
-        import os
-        upload_dir = "uploads/chat"
-        os.makedirs(upload_dir, exist_ok=True)
-        
-        filename = f"{datetime.utcnow().timestamp()}_{image.filename}"
-        file_path = f"{upload_dir}/{filename}"
-        with open(file_path, "wb") as f:
-            f.write(await image.read())
-        
-        # Return URL that can be accessed via static files
-        image_url = f"http://localhost:8000/uploads/chat/{filename}"
+        try:
+            upload_dir = "uploads/chat"
+            os.makedirs(upload_dir, exist_ok=True)
+            
+            # Sanitize filename
+            safe_filename = "".join(c for c in image.filename if c.isalnum() or c in "._-")
+            filename = f"{int(datetime.utcnow().timestamp())}_{safe_filename}"
+            file_path = os.path.join(upload_dir, filename)
+            
+            with open(file_path, "wb") as f:
+                content = await image.read()
+                f.write(content)
+            
+            # Return URL that can be accessed via static files
+            image_url = f"http://localhost:8000/uploads/chat/{filename}"
+        except Exception as e:
+            print(f"[ERROR] Admin image upload failed: {e}")
+            # Continue without image
     
     # Create message
-    vn_now = datetime.utcnow() + timedelta(hours=7)
-    message = {
-        "_id": f"msg_{get_next_sequence('messages')}",
-        "conversation_id": conversation_id,
-        "sender_id": current_user["_id"],
-        "sender_name": "Admin",
-        "sender_role": "admin",
-        "content": content,
-        "message_type": message_type,
-        "image_url": image_url,
-        "is_read": False,
-        "created_at": vn_now
-    }
-    
-    messages_collection.insert_one(message)
+    try:
+        vn_now = datetime.utcnow() + timedelta(hours=7)
+        message = {
+            "_id": f"msg_{get_next_sequence('messages')}",
+            "conversation_id": conversation_id,
+            "sender_id": current_user["_id"],
+            "sender_name": "Admin",
+            "sender_role": "admin",
+            "content": str(content),  # Ensure string
+            "message_type": str(message_type),  # Ensure string
+            "image_url": image_url,
+            "is_read": False,
+            "created_at": vn_now
+        }
+        
+        result = messages_collection.insert_one(message)
+        if not result.inserted_id:
+            raise HTTPException(status_code=500, detail="Failed to save admin message")
+            
+    except Exception as e:
+        print(f"[ERROR] Admin message creation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Admin message creation failed: {str(e)}")
     
     # Update conversation
-    conversations_collection.update_one(
-        {"_id": conversation_id},
-        {
-            "$set": {
-                "last_message": content[:100],
-                "last_message_at": datetime.utcnow(),
-                "admin_id": current_user["_id"]
-            },
-            "$inc": {"unread_count_user": 1}
-        }
-    )
+    try:
+        conversations_collection.update_one(
+            {"_id": conversation_id},
+            {
+                "$set": {
+                    "last_message": str(content)[:100],
+                    "last_message_at": datetime.utcnow(),
+                    "admin_id": current_user["_id"]
+                },
+                "$inc": {"unread_count_user": 1}
+            }
+        )
+    except Exception as e:
+        print(f"[WARNING] Failed to update conversation (admin): {e}")
+        # Don't fail the request for this
     
     message["id"] = message["_id"]
     return message

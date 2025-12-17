@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
+import uuid
 
 # Import all routers
 from app.auth import router as auth_router
@@ -87,8 +88,61 @@ uploads_dir = "uploads"
 if not os.path.exists(uploads_dir):
     os.makedirs(uploads_dir)
     os.makedirs(os.path.join(uploads_dir, "chat"), exist_ok=True)
+    os.makedirs(os.path.join(uploads_dir, "products"), exist_ok=True)
 
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
+# Add general upload endpoint
+from fastapi import UploadFile, File, HTTPException, Depends
+from app.auth import get_current_user
+import uuid
+
+@app.post("/api/upload/image")
+async def upload_image(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """General image upload endpoint"""
+    
+    # Validate file type
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(
+            status_code=400,
+            detail="File must be an image"
+        )
+    
+    # Validate file size (max 5MB)
+    if file.size > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=400,
+            detail="File size must be less than 5MB"
+        )
+    
+    try:
+        # Create upload directory
+        upload_dir = "uploads/products"
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # Generate unique filename
+        file_extension = os.path.splitext(file.filename)[1]
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        file_path = os.path.join(upload_dir, unique_filename)
+        
+        # Save file
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # Return URL
+        image_url = f"http://localhost:8000/uploads/products/{unique_filename}"
+        
+        return {"url": image_url, "filename": unique_filename}
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to upload image: {str(e)}"
+        )
 
 # Include all routers
 app.include_router(auth_router)  # /api/auth/*

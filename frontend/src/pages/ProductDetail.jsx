@@ -65,9 +65,10 @@ const ProductDetail = () => {
       // Fetch reviews
       try {
         const reviewsData = await reviewService.getProductReviews(id, 1, 10);
-        setReviews(reviewsData);
+        setReviews(reviewsData || []);
       } catch (error) {
-        console.log('No reviews found');
+        console.log('Error fetching reviews:', error);
+        setReviews([]);
       }
       
       // Check if user can review
@@ -673,7 +674,7 @@ const ProductDetail = () => {
       {/* Review Modal */}
       {showReviewModal && (
         <ReviewModal
-          productId={id}
+          product={product}
           onClose={() => setShowReviewModal(false)}
           onSuccess={() => {
             setShowReviewModal(false);

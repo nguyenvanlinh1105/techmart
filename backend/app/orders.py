@@ -483,47 +483,60 @@ async def get_all_orders(
 ):
     """Lấy tất cả đơn hàng (Admin only)"""
     
-    query = {}
-    
-    if status_filter:
-        query["status"] = status_filter
-    
-    if payment_status:
-        query["payment_status"] = payment_status
-    
-    skip = (page - 1) * limit
-    
-    orders = list(
-        orders_collection
-        .find(query)
-        .sort("created_at", -1)
-        .skip(skip)
-        .limit(limit)
-    )
-    
-    # Map _id to id for each order (for response only, not saved to DB)
-    result = []
-    for order in orders:
-        # Ensure _id exists
-        if "_id" not in order:
-            continue
-        # Create a copy for response (don't modify original)
-        order_response = order.copy()
-        order_response["id"] = str(order_response["_id"])
-        # Ensure datetime fields are proper
-        if isinstance(order_response.get("created_at"), str):
+    try:
+        query = {}
+        
+        if status_filter:
+            query["status"] = status_filter
+        
+        if payment_status:
+            query["payment_status"] = payment_status
+        
+        skip = (page - 1) * limit
+        
+        orders = list(
+            orders_collection
+            .find(query)
+            .sort("created_at", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+        
+        # Map _id to id for each order (for response only, not saved to DB)
+        result = []
+        for order in orders:
             try:
-                order_response["created_at"] = datetime.fromisoformat(order_response["created_at"].replace("Z", "+00:00"))
-            except:
-                order_response["created_at"] = datetime.utcnow()
-        if isinstance(order_response.get("updated_at"), str):
-            try:
-                order_response["updated_at"] = datetime.fromisoformat(order_response["updated_at"].replace("Z", "+00:00"))
-            except:
-                order_response["updated_at"] = datetime.utcnow()
-        result.append(OrderResponse(**order_response))
-    
-    return result
+                # Ensure _id exists
+                if "_id" not in order:
+                    continue
+                    
+                # Create a copy for response (don't modify original)
+                order_response = order.copy()
+                order_response["id"] = str(order_response["_id"])
+                
+                # Ensure datetime fields are proper
+                if isinstance(order_response.get("created_at"), str):
+                    try:
+                        order_response["created_at"] = datetime.fromisoformat(order_response["created_at"].replace("Z", "+00:00"))
+                    except:
+                        order_response["created_at"] = datetime.utcnow()
+                
+                if isinstance(order_response.get("updated_at"), str):
+                    try:
+                        order_response["updated_at"] = datetime.fromisoformat(order_response["updated_at"].replace("Z", "+00:00"))
+                    except:
+                        order_response["updated_at"] = datetime.utcnow()
+                
+                result.append(OrderResponse(**order_response))
+            except Exception as e:
+                print(f"[ERROR] Failed to process order {order.get('_id', 'unknown')}: {e}")
+                continue
+        
+        return result
+        
+    except Exception as e:
+        print(f"[ERROR] Admin get all orders failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch orders: {str(e)}")
 
 @router.patch("/admin/{order_id}", response_model=OrderResponse)
 async def update_order_status(

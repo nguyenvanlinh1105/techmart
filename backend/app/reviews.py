@@ -59,8 +59,6 @@ async def create_review(
     review_dict = review.dict()
     review_dict["_id"] = f"review_{get_next_sequence('reviews')}"
     review_dict["user_id"] = current_user["_id"]
-    review_dict["user_name"] = current_user.get("full_name", "Anonymous")
-    review_dict["user_avatar"] = current_user.get("avatar")
     review_dict["is_verified_purchase"] = True
     review_dict["helpful_count"] = 0
     review_dict["created_at"] = datetime.utcnow()
@@ -77,7 +75,11 @@ async def create_review(
         "rating": review.rating
     })
     
+    # Thêm thông tin user cho response
+    review_dict["user_name"] = current_user.get("full_name") or current_user.get("name") or current_user.get("email", "Anonymous")
+    review_dict["user_avatar"] = current_user.get("avatar")
     review_dict["id"] = review_dict["_id"]
+    
     return ReviewResponse(**review_dict)
 
 @router.get("/product/{product_id}", response_model=List[ReviewResponse])
@@ -106,6 +108,15 @@ async def get_product_reviews(
     
     result = []
     for review in reviews:
+        # Lấy thông tin user từ user_id
+        user = users_collection.find_one({"_id": review["user_id"]})
+        if user:
+            review["user_name"] = user.get("full_name") or user.get("name") or user.get("email", "Anonymous")
+            review["user_avatar"] = user.get("avatar")
+        else:
+            review["user_name"] = "Anonymous"
+            review["user_avatar"] = None
+        
         review["id"] = review["_id"]
         result.append(ReviewResponse(**review))
     
@@ -133,6 +144,10 @@ async def get_my_reviews(
     
     result = []
     for review in reviews:
+        # Lấy thông tin user từ current_user
+        review["user_name"] = current_user.get("full_name") or current_user.get("name") or current_user.get("email", "Anonymous")
+        review["user_avatar"] = current_user.get("avatar")
+        
         review["id"] = review["_id"]
         result.append(ReviewResponse(**review))
     

@@ -14,6 +14,8 @@ const AdminOrders = () => {
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [showModal, setShowModal] = useState(false)
   const [highlightedOrderId, setHighlightedOrderId] = useState(null)
+  const [showStatusModal, setShowStatusModal] = useState(false)
+  const [statusChange, setStatusChange] = useState({ orderId: null, newStatus: null, note: '' })
 
 
 
@@ -55,7 +57,10 @@ const AdminOrders = () => {
     try {
       setLoading(true)
       const params = {}
-      if (statusFilter) params.status_filter = statusFilter
+      // Chỉ thêm status_filter khi có giá trị thực sự
+      if (statusFilter && statusFilter.trim() !== '') {
+        params.status_filter = statusFilter
+      }
       
       const response = await api.get('/orders/admin/all', { params })
       setOrders(response.data)
@@ -77,9 +82,38 @@ const AdminOrders = () => {
       toast.success('Cập nhật trạng thái thành công!')
       fetchOrders()
       setShowModal(false)
+      setShowStatusModal(false)
     } catch (error) {
       console.error('Error updating order:', error)
       toast.error(error.response?.data?.detail || 'Không thể cập nhật đơn hàng')
+    }
+  }
+
+  const handleStatusChange = (orderId, newStatus, currentStatus) => {
+    if (newStatus === currentStatus) return
+    
+    // Nếu là thay đổi lớn (nhảy bước), hiển thị modal xác nhận
+    const statusOrder = ['pending', 'confirmed', 'processing', 'shipping', 'delivered']
+    const currentIndex = statusOrder.indexOf(currentStatus)
+    const newIndex = statusOrder.indexOf(newStatus)
+    
+    if (Math.abs(newIndex - currentIndex) > 1 || newStatus === 'cancelled') {
+      setStatusChange({
+        orderId,
+        newStatus,
+        currentStatus,
+        note: ''
+      })
+      setShowStatusModal(true)
+    } else {
+      // Thay đổi bình thường, cập nhật luôn
+      const statusLabels = {
+        'confirmed': 'Xác nhận đơn hàng',
+        'processing': 'Chuyển sang xử lý',
+        'shipping': 'Bắt đầu giao hàng',
+        'delivered': 'Hoàn thành giao hàng'
+      }
+      handleUpdateStatus(orderId, newStatus, statusLabels[newStatus])
     }
   }
 
@@ -366,19 +400,40 @@ const AdminOrders = () => {
                             <FaEye />
                           </button>
 
-
+                          {/* Quick Status Change Dropdown */}
+                          {order.status !== 'cancelled' && order.status !== 'delivered' && (
+                            <select
+                              value={order.status}
+                              onChange={(e) => {
+                                handleStatusChange(order.id || order._id, e.target.value, order.status)
+                              }}
+                              className="px-3 py-2 text-sm font-semibold border-2 border-gray-300 rounded-lg 
+                                       focus:border-purple-500 focus:outline-none
+                                       bg-white hover:bg-gray-50 transition-colors cursor-pointer"
+                              title="Thay đổi trạng thái"
+                            >
+                              <option value="pending">Chờ Xác Nhận</option>
+                              <option value="confirmed">Đã Xác Nhận</option>
+                              <option value="processing">Đang Xử Lý</option>
+                              <option value="shipping">Đang Giao</option>
+                              <option value="delivered">Đã Giao</option>
+                              <option value="cancelled">Hủy Đơn</option>
+                            </select>
+                          )}
                           
+                          {/* Quick Action Button (Next Step) */}
                           {config.action && order.status !== 'cancelled' && order.status !== 'delivered' && (
                             <button
                               onClick={() => handleUpdateStatus(order.id || order._id, config.action.status)}
                               className={`px-3 py-2 ${config.action.color} text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-bold flex items-center`}
-                              title={config.action.label}
+                              title={`Bước tiếp theo: ${config.action.label}`}
                             >
                               <config.action.icon className="mr-1" />
                               {config.action.label}
                             </button>
                           )}
                           
+                          {/* Cancel Button */}
                           {(order.status === 'pending' || order.status === 'confirmed') && (
                             <button
                               onClick={() => handleUpdateStatus(order.id || order._id, 'cancelled', 'Hủy bởi admin')}
@@ -474,6 +529,70 @@ const AdminOrders = () => {
                     {formatPrice(selectedOrder.total_amount || selectedOrder.total)}
                   </span>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status Change Confirmation Modal */}
+      {showStatusModal && statusChange.orderId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-6 py-4 rounded-t-2xl">
+              <h2 className="text-xl font-black">Xác Nhận Thay Đổi Trạng Thái</h2>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="text-center">
+                <p className="text-gray-700 mb-2">
+                  Bạn có chắc muốn thay đổi trạng thái đơn hàng từ:
+                </p>
+                <div className="flex items-center justify-center gap-4 my-4">
+                  <span className={`px-3 py-1 rounded-full text-sm font-bold ${statusConfig[statusChange.currentStatus]?.color}`}>
+                    {statusConfig[statusChange.currentStatus]?.label}
+                  </span>
+                  <span className="text-2xl">→</span>
+                  <span className={`px-3 py-1 rounded-full text-sm font-bold ${statusConfig[statusChange.newStatus]?.color}`}>
+                    {statusConfig[statusChange.newStatus]?.label}
+                  </span>
+                </div>
+              </div>
+
+              {/* Note Input */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Ghi chú (tùy chọn):
+                </label>
+                <textarea
+                  value={statusChange.note}
+                  onChange={(e) => setStatusChange({...statusChange, note: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                  placeholder="Lý do thay đổi trạng thái..."
+                  rows="3"
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowStatusModal(false)}
+                  className="flex-1 px-4 py-2 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={() => {
+                    handleUpdateStatus(
+                      statusChange.orderId, 
+                      statusChange.newStatus, 
+                      statusChange.note || `Thay đổi trạng thái thành ${statusConfig[statusChange.newStatus]?.label}`
+                    )
+                  }}
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold rounded-lg transition-all"
+                >
+                  Xác Nhận
+                </button>
               </div>
             </div>
           </div>

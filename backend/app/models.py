@@ -353,7 +353,6 @@ class OrderResponse(OrderBase):
 # ==================== REVIEW MODELS (F27) ====================
 class ReviewBase(BaseModel):
     product_id: str
-    user_id: str
     rating: int = Field(..., ge=1, le=5)
     title: Optional[str] = None
     comment: Optional[str] = None
@@ -363,19 +362,22 @@ class ReviewBase(BaseModel):
 class ReviewCreate(ReviewBase):
     pass
 
+class ReviewResponse(ReviewBase):
+    id: str
+    user_id: str
+    user_name: str
+    user_avatar: Optional[str] = None
+    helpful_count: int = 0
+    created_at: datetime
+    admin_reply: Optional[str] = None
+
 class ReviewUpdate(BaseModel):
     rating: Optional[int] = Field(None, ge=1, le=5)
     title: Optional[str] = None
     comment: Optional[str] = None
     images: Optional[List[str]] = None
 
-class ReviewResponse(ReviewBase):
-    id: str
-    user_name: str
-    user_avatar: Optional[str] = None
-    helpful_count: int = 0
-    created_at: datetime
-    admin_reply: Optional[str] = None
+
 
 # ==================== WISHLIST MODELS (F26) ====================
 class WishlistItem(BaseModel):

@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Query, Body
+from fastapi import APIRouter, HTTPException, status, Depends, Query, Body, UploadFile, File
 from typing import List, Optional
 from datetime import datetime, timedelta
+import os
 
 from .models import (
     UserResponse, CouponCreate, CouponUpdate, CouponResponse,
@@ -8,12 +9,70 @@ from .models import (
 )
 from .database import (
     users_collection, products_collection, orders_collection,
-    coupons_collection, activity_logs_collection,
-    get_next_sequence, log_activity
+    coupons_collection, activity_logs_collection, categories_collection,
+    get_next_sequence, log_activity, create_notification_safe
 )
 from .auth import get_current_admin
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
+
+# ==================== IMAGE UPLOAD ====================
+
+@router.post("/upload/image")
+async def upload_image(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_admin)
+):
+    """Upload image for products"""
+    
+    # Validate file type
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be an image"
+        )
+    
+    # Validate file size (max 5MB)
+    if file.size > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size must be less than 5MB"
+        )
+    
+    try:
+        # Create upload directory
+        upload_dir = "uploads/products"
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # Generate unique filename
+        import uuid
+        file_extension = os.path.splitext(file.filename)[1]
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        file_path = os.path.join(upload_dir, unique_filename)
+        
+        # Save file
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # Return URL
+        image_url = f"http://localhost:8000/uploads/products/{unique_filename}"
+        
+        try:
+            log_activity(current_user["_id"], "IMAGE_UPLOADED", {
+                "filename": unique_filename,
+                "original_name": file.filename
+            })
+        except Exception as e:
+            print(f"Warning: Could not log activity: {e}")
+        
+        return {"url": image_url, "filename": unique_filename}
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload image: {str(e)}"
+        )
 
 # ==================== USER MANAGEMENT (F33) ====================
 
@@ -289,28 +348,150 @@ async def delete_coupon(
 
 # ==================== PRODUCT MANAGEMENT ====================
 
+@router.get("/products")
+async def get_all_products_admin(
+    current_user: dict = Depends(get_current_admin),
+    category_id: Optional[str] = None,
+    search: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100)
+):
+    """Lấy tất cả sản phẩm cho admin"""
+    
+    query = {}
+    
+    if category_id:
+        query["category_id"] = category_id
+    
+    if search:
+        query["$or"] = [
+            {"name": {"$regex": search, "$options": "i"}},
+            {"description": {"$regex": search, "$options": "i"}},
+            {"brand": {"$regex": search, "$options": "i"}}
+        ]
+    
+    skip = (page - 1) * limit
+    
+    products = list(
+        products_collection
+        .find(query)
+        .sort("created_at", -1)
+        .skip(skip)
+        .limit(limit)
+    )
+    
+    result = []
+    for prod in products:
+        result.append({
+            "id": prod["_id"],
+            "_id": prod["_id"],
+            "name": prod["name"],
+            "slug": prod["slug"],
+            "description": prod["description"],
+            "short_description": prod.get("short_description"),
+            "category_id": prod["category_id"],
+            "brand": prod.get("brand"),
+            "price": prod["price"],
+            "compare_price": prod.get("compare_price"),
+            "stock": prod["stock"],
+            "sku": prod.get("sku"),
+            "images": prod.get("images", []),
+            "variants": prod.get("variants", []),
+            "tags": prod.get("tags", []),
+            "is_featured": prod.get("is_featured", False),
+            "is_on_sale": prod.get("is_on_sale", False),
+            "rating": prod.get("rating", 0.0),
+            "review_count": prod.get("review_count", 0),
+            "sold_count": prod.get("sold_count", 0),
+            "view_count": prod.get("view_count", 0),
+            "created_at": prod["created_at"],
+            "updated_at": prod["updated_at"]
+        })
+    
+    return result
+
 @router.post("/products", status_code=status.HTTP_201_CREATED)
 async def create_product(
     product_data: dict,
     current_user: dict = Depends(get_current_admin)
 ):
     """Tạo sản phẩm mới (Admin)"""
-    from .products import router as products_router
     
-    product_dict = product_data.copy()
-    product_dict["_id"] = f"prod_{get_next_sequence('products')}"
-    product_dict["created_at"] = datetime.utcnow()
-    product_dict["updated_at"] = datetime.utcnow()
-    product_dict["sold_count"] = 0
-    product_dict["review_count"] = 0
-    product_dict["rating"] = 0
+    # Validate required fields
+    required_fields = ['name', 'category_id', 'brand', 'price', 'stock']
+    for field in required_fields:
+        if field not in product_data or product_data[field] is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Missing required field: {field}"
+            )
+    
+    # Check if category exists
+    if not categories_collection.find_one({"_id": product_data["category_id"]}):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Category not found"
+        )
+    
+    # Generate slug if not provided
+    if not product_data.get("slug"):
+        base_slug = product_data["name"].lower()
+        # Convert Vietnamese to ASCII
+        base_slug = (base_slug
+            .replace('à', 'a').replace('á', 'a').replace('ạ', 'a').replace('ả', 'a').replace('ã', 'a')
+            .replace('â', 'a').replace('ầ', 'a').replace('ấ', 'a').replace('ậ', 'a').replace('ẩ', 'a').replace('ẫ', 'a')
+            .replace('ă', 'a').replace('ằ', 'a').replace('ắ', 'a').replace('ặ', 'a').replace('ẳ', 'a').replace('ẵ', 'a')
+            .replace('è', 'e').replace('é', 'e').replace('ẹ', 'e').replace('ẻ', 'e').replace('ẽ', 'e')
+            .replace('ê', 'e').replace('ề', 'e').replace('ế', 'e').replace('ệ', 'e').replace('ể', 'e').replace('ễ', 'e')
+            .replace('ì', 'i').replace('í', 'i').replace('ị', 'i').replace('ỉ', 'i').replace('ĩ', 'i')
+            .replace('ò', 'o').replace('ó', 'o').replace('ọ', 'o').replace('ỏ', 'o').replace('õ', 'o')
+            .replace('ô', 'o').replace('ồ', 'o').replace('ố', 'o').replace('ộ', 'o').replace('ổ', 'o').replace('ỗ', 'o')
+            .replace('ơ', 'o').replace('ờ', 'o').replace('ớ', 'o').replace('ợ', 'o').replace('ở', 'o').replace('ỡ', 'o')
+            .replace('ù', 'u').replace('ú', 'u').replace('ụ', 'u').replace('ủ', 'u').replace('ũ', 'u')
+            .replace('ư', 'u').replace('ừ', 'u').replace('ứ', 'u').replace('ự', 'u').replace('ử', 'u').replace('ữ', 'u')
+            .replace('ỳ', 'y').replace('ý', 'y').replace('ỵ', 'y').replace('ỷ', 'y').replace('ỹ', 'y')
+            .replace('đ', 'd'))
+        
+        import re
+        base_slug = re.sub(r'[^a-z0-9\s]', '', base_slug)
+        base_slug = re.sub(r'\s+', '-', base_slug.strip())
+        product_data["slug"] = f"{base_slug}-{get_next_sequence('products')}"
+    
+    # Create product dict based on seed_data.py structure
+    product_dict = {
+        "_id": f"prod_{get_next_sequence('products')}",
+        "name": product_data["name"],
+        "slug": product_data.get("slug"),
+        "description": product_data.get("description", ""),
+        "short_description": product_data.get("short_description", product_data.get("description", "")[:100]),
+        "category_id": product_data["category_id"],
+        "brand": product_data["brand"],
+        "price": int(product_data["price"]),
+        "compare_price": int(product_data.get("compare_price", 0)) if product_data.get("compare_price") else None,
+        "stock": int(product_data["stock"]),
+        "sku": product_data.get("sku", f"{product_data['brand'][:3].upper()}-{get_next_sequence('products')}"),
+        "images": product_data.get("images", [{"url": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80", "is_primary": True, "alt_text": product_data["name"]}]),
+        "variants": product_data.get("variants", []),
+        "tags": product_data.get("tags", [product_data["brand"].lower(), "admin-created"]),
+        "is_featured": product_data.get("is_featured", False),
+        "is_on_sale": product_data.get("is_on_sale", False),
+        "rating": 0.0,
+        "review_count": 0,
+        "sold_count": 0,
+        "view_count": 0,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
     
     products_collection.insert_one(product_dict)
     
-    log_activity(current_user["_id"], "PRODUCT_CREATED", {
-        "product_id": product_dict["_id"],
-        "product_name": product_dict.get("name")
-    })
+    try:
+        log_activity(current_user["_id"], "PRODUCT_CREATED", {
+            "product_id": product_dict["_id"],
+            "product_name": product_dict["name"]
+        })
+    except Exception as e:
+        print(f"Warning: Could not log activity: {e}")
     
     return {"message": "Product created successfully", "product_id": product_dict["_id"]}
 
@@ -330,7 +511,39 @@ async def update_product(
             detail="Product not found"
         )
     
-    update_data = product_data.copy()
+    # Prepare update data
+    update_data = {}
+    
+    # Only update fields that are provided
+    if "name" in product_data:
+        update_data["name"] = product_data["name"]
+    if "description" in product_data:
+        update_data["description"] = product_data["description"]
+    if "short_description" in product_data:
+        update_data["short_description"] = product_data["short_description"]
+    if "category_id" in product_data:
+        update_data["category_id"] = product_data["category_id"]
+    if "brand" in product_data:
+        update_data["brand"] = product_data["brand"]
+    if "price" in product_data:
+        update_data["price"] = int(product_data["price"])
+    if "compare_price" in product_data:
+        update_data["compare_price"] = int(product_data["compare_price"]) if product_data["compare_price"] else None
+    if "stock" in product_data:
+        update_data["stock"] = int(product_data["stock"])
+    if "sku" in product_data:
+        update_data["sku"] = product_data["sku"]
+    if "images" in product_data:
+        update_data["images"] = product_data["images"]
+    if "variants" in product_data:
+        update_data["variants"] = product_data["variants"]
+    if "tags" in product_data:
+        update_data["tags"] = product_data["tags"]
+    if "is_featured" in product_data:
+        update_data["is_featured"] = product_data["is_featured"]
+    if "is_on_sale" in product_data:
+        update_data["is_on_sale"] = product_data["is_on_sale"]
+    
     update_data["updated_at"] = datetime.utcnow()
     
     products_collection.update_one(
@@ -338,7 +551,10 @@ async def update_product(
         {"$set": update_data}
     )
     
-    log_activity(current_user["_id"], "PRODUCT_UPDATED", {"product_id": product_id})
+    try:
+        log_activity(current_user["_id"], "PRODUCT_UPDATED", {"product_id": product_id})
+    except Exception as e:
+        print(f"Warning: Could not log activity: {e}")
     
     return {"message": "Product updated successfully"}
 
@@ -357,7 +573,10 @@ async def delete_product(
             detail="Product not found"
         )
     
-    log_activity(current_user["_id"], "PRODUCT_DELETED", {"product_id": product_id})
+    try:
+        log_activity(current_user["_id"], "PRODUCT_DELETED", {"product_id": product_id})
+    except Exception as e:
+        print(f"Warning: Could not log activity: {e}")
     
     return {"message": "Product deleted successfully"}
 
