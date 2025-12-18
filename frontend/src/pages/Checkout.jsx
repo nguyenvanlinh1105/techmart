@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   FaCheck, 
@@ -98,6 +98,20 @@ const Checkout = () => {
     expiryDate: '',
     cvv: '',
   });
+
+  // Memoized onChange handler to prevent infinite re-renders
+  const handleAddressChange = useCallback((data) => {
+    setAddressData(data);
+    setShippingInfo(prev => ({
+      ...prev,
+      city: data.provinceName,
+      cityCode: data.provinceCode,
+      district: data.districtName,
+      districtCode: data.districtCode,
+      ward: data.wardName,
+      wardCode: data.wardCode
+    }));
+  }, []);
 
   // Available discount coupons from API
   const [availableCoupons, setAvailableCoupons] = useState([]);
@@ -734,18 +748,7 @@ const Checkout = () => {
                     {/* Address Selector for manual input */}
                     <AddressSelector
                       value={addressData}
-                      onChange={(data) => {
-                        setAddressData(data);
-                        setShippingInfo({
-                          ...shippingInfo,
-                          city: data.provinceName,
-                          cityCode: data.provinceCode,
-                          district: data.districtName,
-                          districtCode: data.districtCode,
-                          ward: data.wardName,
-                          wardCode: data.wardCode
-                        });
-                      }}
+                      onChange={handleAddressChange}
                       required={true}
                     />
 
@@ -1261,7 +1264,7 @@ const Checkout = () => {
                 {/* Address Selector Component */}
                 <AddressSelector
                   value={addressData}
-                  onChange={setAddressData}
+                  onChange={handleAddressChange}
                   required={true}
                 />
 

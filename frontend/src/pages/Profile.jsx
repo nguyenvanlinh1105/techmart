@@ -357,10 +357,23 @@ const Profile = () => {
 
   const handleAddressFormChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setAddressForm({
+    
+    let updatedForm = {
       ...addressForm,
       [name]: type === 'checkbox' ? checked : value
-    });
+    };
+    
+    // Clear related codes when manually typing district/ward names
+    if (name === 'district') {
+      updatedForm.district_code = '';
+      updatedForm.ward_code = '';
+      updatedForm.ward = '';
+      setWards([]); // Clear wards when district is manually typed
+    } else if (name === 'ward') {
+      updatedForm.ward_code = '';
+    }
+    
+    setAddressForm(updatedForm);
   };
 
   if (authLoading) {
