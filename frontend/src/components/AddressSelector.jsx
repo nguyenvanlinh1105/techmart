@@ -65,7 +65,7 @@ const AddressSelector = ({ value, onChange, required = false }) => {
       wardCode: selectedWard,
       wardName: ward?.name || ''
     });
-  }, [selectedProvince, selectedDistrict, selectedWard, provinces, districts, wards, onChange]);
+  }, [selectedProvince, selectedDistrict, selectedWard, provinces, districts, wards]); // Removed onChange from dependencies
 
   const loadProvinces = async () => {
     setLoading(prev => ({ ...prev, provinces: true }));
