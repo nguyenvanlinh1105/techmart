@@ -53,19 +53,32 @@ const AddressSelector = ({ value, onChange, required = false }) => {
 
   // Notify parent of changes
   useEffect(() => {
-    const province = provinces.find(p => p.code === parseInt(selectedProvince)) || getProvinceByCode(selectedProvince);
-    const district = districts.find(d => d.code === parseInt(selectedDistrict)) || getDistrictByCode(selectedDistrict);
-    const ward = wards.find(w => w.code === parseInt(selectedWard)) || getWardByCode(selectedWard);
+    // Only call onChange if we have valid data to prevent infinite loops
+    if (provinces.length > 0) {
+      const province = provinces.find(p => String(p.code) === String(selectedProvince)) || getProvinceByCode(selectedProvince);
+      const district = districts.find(d => String(d.code) === String(selectedDistrict)) || getDistrictByCode(selectedDistrict);
+      const ward = wards.find(w => String(w.code) === String(selectedWard)) || getWardByCode(selectedWard);
 
-    onChange({
-      provinceCode: selectedProvince,
-      provinceName: province?.name || '',
-      districtCode: selectedDistrict,
-      districtName: district?.name || '',
-      wardCode: selectedWard,
-      wardName: ward?.name || ''
-    });
-  }, [selectedProvince, selectedDistrict, selectedWard, provinces, districts, wards]); // Removed onChange from dependencies
+      const newData = {
+        provinceCode: selectedProvince,
+        provinceName: province?.name || '',
+        districtCode: selectedDistrict,
+        districtName: district?.name || '',
+        wardCode: selectedWard,
+        wardName: ward?.name || ''
+      };
+
+      // Only call onChange if data has actually changed
+      const hasChanged = 
+        newData.provinceCode !== value?.provinceCode ||
+        newData.districtCode !== value?.districtCode ||
+        newData.wardCode !== value?.wardCode;
+
+      if (hasChanged) {
+        onChange(newData);
+      }
+    }
+  }, [selectedProvince, selectedDistrict, selectedWard, provinces, districts, wards, value]); // Added value to dependencies
 
   const loadProvinces = async () => {
     setLoading(prev => ({ ...prev, provinces: true }));
