@@ -99,7 +99,10 @@ const AdminProducts = () => {
       });
       setImagePreview("");
     }
+    
+    // Reset image upload states
     setSelectedFile(null);
+    setUploadingImage(false);
     setShowModal(true);
   };
 
@@ -116,7 +119,12 @@ const AdminProducts = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Validate required fields
+    if (!formData.name.trim()) return toast.error("Vui lòng nhập tên sản phẩm");
+    if (!formData.brand.trim()) return toast.error("Vui lòng nhập thương hiệu");
     if (!formData.category_id) return toast.error("Vui lòng chọn danh mục");
+    if (!formData.price || formData.price <= 0) return toast.error("Vui lòng nhập giá hợp lệ");
+    if (!formData.stock || formData.stock < 0) return toast.error("Vui lòng nhập số lượng tồn kho");
 
     try {
       setUploadingImage(true);
@@ -124,12 +132,29 @@ const AdminProducts = () => {
 
       // Upload ảnh nếu có file mới được chọn
       if (selectedFile) {
+        console.log('📤 Uploading image...');
         const uploadData = new FormData();
         uploadData.append("file", selectedFile);
-        const uploadRes = await api.post("/admin/upload/image", uploadData);
+        
+        const uploadRes = await api.post("/admin/upload/image", uploadData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+        
+        console.log('✅ Image uploaded:', uploadRes.data);
         finalImages = [
           {
             url: uploadRes.data.url,
+            is_primary: true,
+            alt_text: formData.name,
+          },
+        ];
+      } else if (!finalImages || finalImages.length === 0) {
+        // Nếu không có ảnh, dùng placeholder
+        finalImages = [
+          {
+            url: 'https://via.placeholder.com/400x400?text=No+Image',
             is_primary: true,
             alt_text: formData.name,
           },
@@ -145,18 +170,44 @@ const AdminProducts = () => {
         );
         toast.success("Cập nhật thành công");
       } else {
-        const slug =
-          formData.name.toLowerCase().trim().replace(/\s+/g, "-") +
-          "-" +
-          Date.now();
-        await api.post("/admin/products", { ...payload, slug });
+        // Tạo slug unique
+        const baseSlug = formData.name.toLowerCase()
+          .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g, 'a')
+          .replace(/[èéẹẻẽêềếệểễ]/g, 'e')
+          .replace(/[ìíịỉĩ]/g, 'i')
+          .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g, 'o')
+          .replace(/[ùúụủũưừứựửữ]/g, 'u')
+          .replace(/[ỳýỵỷỹ]/g, 'y')
+          .replace(/đ/g, 'd')
+          .replace(/[^a-z0-9\s]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '');
+        
+        const uniqueSlug = `${baseSlug}-${Date.now()}`;
+        
+        console.log('📤 Creating product with payload:', { ...payload, slug: uniqueSlug });
+        await api.post("/admin/products", { ...payload, slug: uniqueSlug });
         toast.success("Thêm sản phẩm thành công");
       }
 
       setShowModal(false);
-      fetchProducts();
+      
+      // Reset form states
+      setSelectedFile(null);
+      setImagePreview("");
+      setUploadingImage(false);
+      
+      // Refresh products list
+      await fetchProducts();
     } catch (error) {
-      const errorMsg = error.response?.data?.detail || "Lỗi lưu dữ liệu";
+      console.error('❌ Error saving product:', error);
+      console.error('❌ Error response:', error.response?.data);
+      
+      const errorMsg = error.response?.data?.detail || 
+                      error.response?.data?.message || 
+                      error.message || 
+                      "Lỗi lưu dữ liệu";
       toast.error(errorMsg);
     } finally {
       setUploadingImage(false);
