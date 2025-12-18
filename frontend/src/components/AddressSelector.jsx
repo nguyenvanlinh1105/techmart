@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { addressService } from '../services/addressService';
 import { FaMapMarkerAlt, FaSpinner } from 'react-icons/fa';
+import { 
+  vietnamProvinces, 
+  getDistrictsByProvince, 
+  getWardsByDistrict,
+  getProvinceByCode,
+  getDistrictByCode,
+  getWardByCode
+} from '../data/vietnamAddresses';
 
 const AddressSelector = ({ value, onChange, required = false }) => {
   const [provinces, setProvinces] = useState([]);
@@ -45,9 +53,9 @@ const AddressSelector = ({ value, onChange, required = false }) => {
 
   // Notify parent of changes
   useEffect(() => {
-    const province = provinces.find(p => p.code === parseInt(selectedProvince));
-    const district = districts.find(d => d.code === parseInt(selectedDistrict));
-    const ward = wards.find(w => w.code === parseInt(selectedWard));
+    const province = provinces.find(p => p.code === parseInt(selectedProvince)) || getProvinceByCode(selectedProvince);
+    const district = districts.find(d => d.code === parseInt(selectedDistrict)) || getDistrictByCode(selectedDistrict);
+    const ward = wards.find(w => w.code === parseInt(selectedWard)) || getWardByCode(selectedWard);
 
     onChange({
       provinceCode: selectedProvince,
@@ -57,26 +65,63 @@ const AddressSelector = ({ value, onChange, required = false }) => {
       wardCode: selectedWard,
       wardName: ward?.name || ''
     });
-  }, [selectedProvince, selectedDistrict, selectedWard, provinces, districts, wards]);
+  }, [selectedProvince, selectedDistrict, selectedWard, provinces, districts, wards, onChange]);
 
   const loadProvinces = async () => {
     setLoading(prev => ({ ...prev, provinces: true }));
-    const data = await addressService.getProvinces();
-    setProvinces(data);
+    try {
+      const data = await addressService.getProvinces();
+      if (data && data.length > 0) {
+        setProvinces(data);
+      } else {
+        // Fallback to local data
+        console.log('🔄 Using fallback province data');
+        setProvinces(vietnamProvinces);
+      }
+    } catch (error) {
+      console.error('❌ API failed, using fallback data:', error);
+      setProvinces(vietnamProvinces);
+    }
     setLoading(prev => ({ ...prev, provinces: false }));
   };
 
   const loadDistricts = async (provinceCode) => {
     setLoading(prev => ({ ...prev, districts: true }));
-    const data = await addressService.getDistricts(provinceCode);
-    setDistricts(data);
+    try {
+      const data = await addressService.getDistricts(provinceCode);
+      if (data && data.length > 0) {
+        setDistricts(data);
+      } else {
+        // Fallback to local data
+        console.log('🔄 Using fallback district data for province:', provinceCode);
+        const fallbackDistricts = getDistrictsByProvince(provinceCode);
+        setDistricts(fallbackDistricts);
+      }
+    } catch (error) {
+      console.error('❌ API failed, using fallback data:', error);
+      const fallbackDistricts = getDistrictsByProvince(provinceCode);
+      setDistricts(fallbackDistricts);
+    }
     setLoading(prev => ({ ...prev, districts: false }));
   };
 
   const loadWards = async (districtCode) => {
     setLoading(prev => ({ ...prev, wards: true }));
-    const data = await addressService.getWards(districtCode);
-    setWards(data);
+    try {
+      const data = await addressService.getWards(districtCode);
+      if (data && data.length > 0) {
+        setWards(data);
+      } else {
+        // Fallback to local data
+        console.log('🔄 Using fallback ward data for district:', districtCode);
+        const fallbackWards = getWardsByDistrict(districtCode);
+        setWards(fallbackWards);
+      }
+    } catch (error) {
+      console.error('❌ API failed, using fallback data:', error);
+      const fallbackWards = getWardsByDistrict(districtCode);
+      setWards(fallbackWards);
+    }
     setLoading(prev => ({ ...prev, wards: false }));
   };
 
