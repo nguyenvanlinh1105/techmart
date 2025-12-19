@@ -1,7 +1,14 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query, Body, UploadFile, File
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
+
+# Múi giờ Việt Nam (UTC+7)
+VIETNAM_TZ = timezone(timedelta(hours=7))
+
+def get_vietnam_now():
+    """Lấy thời gian hiện tại theo múi giờ Việt Nam"""
+    return datetime.now(VIETNAM_TZ)
 
 from .models import (
     UserResponse, CouponCreate, CouponUpdate, CouponResponse,
@@ -589,8 +596,8 @@ async def get_sales_stats(
 ):
     """Thống kê doanh thu - F36"""
     
-    # Calculate date range based on period
-    now = datetime.utcnow()
+    # Calculate date range based on period (Vietnam timezone)
+    now = get_vietnam_now()
     
     if period == "daily":
         start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -602,6 +609,9 @@ async def get_sales_stats(
         start_date = now - timedelta(days=365)
     else:
         start_date = now - timedelta(days=30)
+    
+    # Remove timezone for MongoDB query
+    start_date = start_date.replace(tzinfo=None)
     
     # Aggregate orders
     pipeline = [
@@ -677,8 +687,8 @@ async def get_user_stats(current_user: dict = Depends(get_current_admin)):
     
     total_users = users_collection.count_documents({})
     
-    # New users today
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    # New users today (Vietnam timezone)
+    today_start = get_vietnam_now().replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
     new_users_today = users_collection.count_documents({
         "created_at": {"$gte": today_start}
     })
@@ -720,12 +730,14 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_admin)):
     revenue_result = list(orders_collection.aggregate(revenue_pipeline))
     total_revenue = revenue_result[0]["total"] if revenue_result else 0
     
-    # Monthly revenue
+    # Monthly revenue (Vietnam timezone)
+    now_vn = get_vietnam_now()
+    monthly_start = (now_vn - timedelta(days=30)).replace(tzinfo=None)
     monthly_revenue_pipeline = [
         {
             "$match": {
                 "status": {"$in": ["delivered", "shipping", "processing"]},
-                "created_at": {"$gte": datetime.utcnow() - timedelta(days=30)}
+                "created_at": {"$gte": monthly_start}
             }
         },
         {"$group": {"_id": None, "total": {"$sum": "$total"}}}
@@ -740,8 +752,8 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_admin)):
     # In stock products
     in_stock_products = products_collection.count_documents({"stock": {"$gt": 0}})
     
-    # New users this week
-    week_start = datetime.utcnow() - timedelta(days=7)
+    # New users this week (Vietnam timezone)
+    week_start = (now_vn - timedelta(days=7)).replace(tzinfo=None)
     new_users_week = users_collection.count_documents({"created_at": {"$gte": week_start}})
     
     return {
