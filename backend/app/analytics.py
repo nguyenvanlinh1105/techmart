@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 
 from .auth import get_current_admin
@@ -10,6 +10,20 @@ from .database import (
 )
 
 router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
+
+# Múi giờ Việt Nam (UTC+7)
+VIETNAM_TZ = timezone(timedelta(hours=7))
+
+def get_vietnam_now():
+    """Lấy thời gian hiện tại theo múi giờ Việt Nam"""
+    return datetime.now(VIETNAM_TZ)
+
+def to_vietnam_time(dt):
+    """Chuyển đổi datetime sang múi giờ Việt Nam"""
+    if dt.tzinfo is None:
+        # Nếu datetime không có timezone, giả định là UTC
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(VIETNAM_TZ)
 
 # ==================== DASHBOARD STATISTICS ====================
 
@@ -26,8 +40,8 @@ async def get_dashboard_stats(
     - Khách hàng mới
     """
     
-    # Calculate date range
-    end_date = datetime.utcnow()
+    # Calculate date range (Vietnam timezone)
+    end_date = get_vietnam_now()
     start_date = end_date - timedelta(days=days)
     
     # Get all orders in date range
@@ -203,12 +217,12 @@ async def get_revenue_by_category(
     Doanh thu theo danh mục (cho pie chart)
     """
     
-    end_date = datetime.utcnow()
+    end_date = get_vietnam_now()
     start_date = end_date - timedelta(days=days)
     
     # Get orders in period
     orders = list(orders_collection.find({
-        "created_at": {"$gte": start_date, "$lte": end_date}
+        "created_at": {"$gte": start_date.replace(tzinfo=None), "$lte": end_date.replace(tzinfo=None)}
     }))
     
     # Calculate revenue by category
@@ -247,7 +261,7 @@ async def get_customer_stats(
     Thống kê khách hàng
     """
     
-    end_date = datetime.utcnow()
+    end_date = get_vietnam_now()
     start_date = end_date - timedelta(days=days)
     
     # Get orders in period
@@ -303,7 +317,7 @@ async def get_sales_forecast(
     Dự đoán doanh thu (simple moving average)
     """
     
-    end_date = datetime.utcnow()
+    end_date = get_vietnam_now()
     start_date = end_date - timedelta(days=days * 2)  # Get 2x data for better forecast
     
     # Get orders
@@ -354,7 +368,7 @@ async def get_revenue_analysis(
     Phân tích doanh thu đa chiều
     """
     
-    end_date = datetime.utcnow()
+    end_date = get_vietnam_now()
     start_date = end_date - timedelta(days=days)
     
     orders = list(orders_collection.find({
@@ -376,8 +390,11 @@ async def get_revenue_analysis(
     revenue_by_status = defaultdict(float)
     
     for order in orders:
-        hour = order["created_at"].hour
-        dow = order["created_at"].strftime("%A")
+        # Chuyển đổi sang múi giờ Việt Nam
+        order_time = to_vietnam_time(order["created_at"]) if order["created_at"].tzinfo else order["created_at"].replace(tzinfo=timezone.utc)
+        order_time_vn = order_time.astimezone(VIETNAM_TZ)
+        hour = order_time_vn.hour
+        dow = order_time_vn.strftime("%A")
         total = float(order.get("total", 0))
         
         revenue_by_hour[hour] += total
@@ -432,7 +449,7 @@ async def get_customer_rfm_analysis(
     Phân tích RFM (Recency, Frequency, Monetary) khách hàng
     """
     
-    now = datetime.utcnow()
+    now = get_vietnam_now()
     
     # Get all orders
     orders = list(orders_collection.find({}))
@@ -449,13 +466,17 @@ async def get_customer_rfm_analysis(
     for order in orders:
         user_id = order.get("user_id")
         order_date = order["created_at"]
+        # Chuyển đổi sang múi giờ Việt Nam để tính toán
+        if order_date.tzinfo is None:
+            order_date = order_date.replace(tzinfo=timezone.utc)
+        order_date_vn = order_date.astimezone(VIETNAM_TZ)
         total = float(order.get("total", 0))
         
-        # Recency
-        days_since = (now - order_date).days
+        # Recency (tính theo múi giờ Việt Nam)
+        days_since = (now - order_date_vn).days
         if days_since < customer_rfm[user_id]["recency"]:
             customer_rfm[user_id]["recency"] = days_since
-            customer_rfm[user_id]["last_order"] = order_date
+            customer_rfm[user_id]["last_order"] = order_date_vn
         
         # Frequency
         customer_rfm[user_id]["frequency"] += 1
@@ -464,8 +485,8 @@ async def get_customer_rfm_analysis(
         customer_rfm[user_id]["monetary"] += total
         
         # First order
-        if not customer_rfm[user_id]["first_order"] or order_date < customer_rfm[user_id]["first_order"]:
-            customer_rfm[user_id]["first_order"] = order_date
+        if not customer_rfm[user_id]["first_order"] or order_date_vn < customer_rfm[user_id]["first_order"]:
+            customer_rfm[user_id]["first_order"] = order_date_vn
     
     # Score RFM (1-5 scale)
     rfm_list = []
@@ -535,7 +556,7 @@ async def get_product_performance(
     Phân tích hiệu suất sản phẩm chi tiết
     """
     
-    end_date = datetime.utcnow()
+    end_date = get_vietnam_now()
     start_date = end_date - timedelta(days=days)
     
     # Get orders in period
@@ -622,7 +643,7 @@ async def get_seller_performance(
     Thống kê hiệu suất người bán
     """
     
-    end_date = datetime.utcnow()
+    end_date = get_vietnam_now()
     start_date = end_date - timedelta(days=days)
     
     # Get all sellers
@@ -685,7 +706,7 @@ async def get_comparison_analysis(
     So sánh hiệu suất giữa 2 kỳ
     """
     
-    end_date = datetime.utcnow()
+    end_date = get_vietnam_now()
     
     # Period 1 (most recent)
     period1_start = end_date - timedelta(days=period1_days)
